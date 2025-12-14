@@ -17,11 +17,6 @@ function App() {
   // Filter state
   const [searchFilter, setSearchFilter] = useState('')
 
-  // Notification state
-  const [notificationEnabled, setNotificationEnabled] = useState(false)
-  const [notificationThreshold, setNotificationThreshold] = useState(60) // minutes
-  const [totalTimeToday, setTotalTimeToday] = useState(0)
-
   // Calculate date range timestamps
   const getDateRangeTimestamps = () => {
     const now = new Date()
@@ -70,10 +65,6 @@ function App() {
       ])
       setHistory(historyRes.data)
       setStats(statsRes.data)
-
-      // Calculate total time for notifications
-      const total = statsRes.data.reduce((acc, curr) => acc + curr.total_duration, 0)
-      setTotalTimeToday(total)
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {
@@ -86,26 +77,6 @@ function App() {
     const interval = setInterval(fetchData, 5000)
     return () => clearInterval(interval)
   }, [dateRange, customStartDate, customEndDate])
-
-  // Request notification permission
-  useEffect(() => {
-    if (notificationEnabled && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission()
-    }
-  }, [notificationEnabled])
-
-  // Check for time threshold notifications
-  useEffect(() => {
-    if (notificationEnabled && 'Notification' in window && Notification.permission === 'granted') {
-      const totalMinutes = Math.floor(totalTimeToday / 1000 / 60)
-      if (totalMinutes >= notificationThreshold && totalMinutes % notificationThreshold === 0) {
-        new Notification('Daily Monitor Alert', {
-          body: `You've been active for ${totalMinutes} minutes today!`,
-          icon: '/favicon.ico'
-        })
-      }
-    }
-  }, [totalTimeToday, notificationEnabled, notificationThreshold])
 
   // Filter history based on search
   const filteredHistory = useMemo(() => {
@@ -123,8 +94,6 @@ function App() {
     if (item.title === 'www.bilibili.com') {
       displayTitle = '哔哩哔哩 (゜-゜)つロ 干杯~';
     }
-    // No truncation for bar chart context primarily, but keep it sane
-    // item.title.substring(0, 50) + '...';
 
     return {
       name: displayTitle,
@@ -143,16 +112,6 @@ function App() {
     if (hours > 0) return `${hours}h ${minutes % 60}m`;
     if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
     return `${seconds}s`;
-  }
-
-  const handleExport = async (format) => {
-    try {
-      const { startTime, endTime } = getDateRangeTimestamps()
-      const url = `/api/export?format=${format}&startTime=${startTime}&endTime=${endTime}`
-      window.open(url, '_blank')
-    } catch (error) {
-      console.error('Error exporting data:', error)
-    }
   }
 
   // Summary Metrics
@@ -182,30 +141,10 @@ function App() {
       <div className="dashboard-header">
         <h1>Daily Monitor</h1>
         <div className="header-controls">
-          <button onClick={() => handleExport('json')} className="export-btn">
-            Export JSON
-          </button>
-          <button onClick={() => handleExport('csv')} className="export-btn">
-            Export CSV
-          </button>
-        </div>
-      </div>
-
-      {/* Date Range Selector */}
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <h3 style={{ marginBottom: '15px' }}>Date Range</h3>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '6px',
-              border: '1px solid #444',
-              background: '#2a2a2a',
-              color: '#fff',
-              cursor: 'pointer'
-            }}
+            className="control-select"
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -220,65 +159,16 @@ function App() {
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #444',
-                  background: '#2a2a2a',
-                  color: '#fff'
-                }}
+                className="control-input"
               />
-              <span style={{ color: '#888' }}>to</span>
+              <span className="date-separator">to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #444',
-                  background: '#2a2a2a',
-                  color: '#fff'
-                }}
+                className="control-input"
               />
             </>
-          )}
-        </div>
-      </div>
-
-      {/* Notification Settings */}
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <h3 style={{ marginBottom: '15px' }}>Time Alerts</h3>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={notificationEnabled}
-              onChange={(e) => setNotificationEnabled(e.target.checked)}
-              style={{ cursor: 'pointer' }}
-            />
-            <span>Enable Notifications</span>
-          </label>
-
-          {notificationEnabled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>Alert every</span>
-              <input
-                type="number"
-                value={notificationThreshold}
-                onChange={(e) => setNotificationThreshold(parseInt(e.target.value) || 60)}
-                min="1"
-                style={{
-                  width: '80px',
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #444',
-                  background: '#2a2a2a',
-                  color: '#fff'
-                }}
-              />
-              <span>minutes</span>
-            </div>
           )}
         </div>
       </div>
@@ -349,7 +239,8 @@ function App() {
                   <YAxis 
                     dataKey="displayName" 
                     type="category" 
-                    width={200} 
+                    width={200}
+                    interval={0}
                     tick={{ fill: '#e2e8f0', fontSize: 13, fontWeight: 500 }} 
                   />
                   <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
@@ -376,14 +267,8 @@ function App() {
             placeholder="Search by app, title, or URL..."
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '6px',
-              border: '1px solid #444',
-              background: '#2a2a2a',
-              color: '#fff',
-              width: '300px'
-            }}
+            className="control-input"
+            style={{ width: '300px' }}
           />
         </div>
         <div className="table-container">

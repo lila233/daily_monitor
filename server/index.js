@@ -58,40 +58,7 @@ app.get('/api/stats', (req, res) => {
     }
 });
 
-app.get('/api/export', (req, res) => {
-    try {
-        const format = req.query.format || 'json';
-        const startTime = req.query.startTime ? parseInt(req.query.startTime) : null;
-        const endTime = req.query.endTime ? parseInt(req.query.endTime) : null;
-        const history = getHistory(10000, startTime, endTime);
 
-        if (format === 'csv') {
-            const csvRows = ['ID,App Name,Title,URL,Start Time,End Time,Duration'];
-            history.forEach(row => {
-                const csvRow = [
-                    row.id,
-                    `"${(row.app_name || '').replace(/"/g, '""')}"`,
-                    `"${(row.title || '').replace(/"/g, '""')}"`,
-                    `"${(row.url || '').replace(/"/g, '""')}"`,
-                    new Date(row.start_time).toISOString(),
-                    new Date(row.end_time).toISOString(),
-                    row.duration
-                ].join(',');
-                csvRows.push(csvRow);
-            });
-
-            res.setHeader('Content-Type', 'text/csv');
-            res.setHeader('Content-Disposition', `attachment; filename="daily-monitor-export-${Date.now()}.csv"`);
-            res.send(csvRows.join('\n'));
-        } else {
-            res.setHeader('Content-Type', 'application/json');
-            res.setHeader('Content-Disposition', `attachment; filename="daily-monitor-export-${Date.now()}.json"`);
-            res.json(history);
-        }
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
