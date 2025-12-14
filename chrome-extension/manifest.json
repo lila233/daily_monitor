@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Daily Monitor Helper",
+  "version": "1.0",
+  "description": "Helper extension to report current URL to local Daily Monitor server.",
+  "permissions": [
+    "tabs",
+    "windows"
+  ],
+  "host_permissions": [
+    "http://localhost:3001/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
