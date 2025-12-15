@@ -122,8 +122,8 @@ export const getDailyStats = (startTime = null, endTime = null) => {
             key = 'blog.csdn.net';
         } else if (lowerCheck.includes('stackoverflow')) {
             key = 'stackoverflow.com';
-        } else if (lowerCheck.includes('google search') || lowerCheck.includes('google')) {
-            key = 'www.google.com';
+        } else if (lowerCheck.includes('chatgpt')) {
+            key = 'chatgpt.com';
         } else {
             // Fallback: If we have a domain, use it. Otherwise use the cleaned title.
             // If the cleaned title is empty, revert to the original app name.
@@ -159,7 +159,7 @@ export const getDailyStats = (startTime = null, endTime = null) => {
     'www.zhihu.com': '知乎 (Zhihu)',
     'blog.csdn.net': 'CSDN',
     'stackoverflow.com': 'Stack Overflow',
-    'www.google.com': 'Google Search',
+    'chatgpt.com': 'ChatGPT',
     'localhost': 'Daily Monitor Dashboard' // Added this mapping
   };
 

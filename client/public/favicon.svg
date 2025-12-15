@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background: Rounded Square matching theme dark bg -->
+  <rect x="0" y="0" width="100" height="100" rx="24" fill="#0f172a" />
+  
+  <!-- Subtle Grid/Map background -->
+  <path d="M20 20 L80 20 M20 40 L80 40 M20 60 L80 60 M20 80 L80 80" stroke="#1e293b" stroke-width="2" />
+  <path d="M20 20 L20 80 M40 20 L40 80 M60 20 L60 80 M80 20 L80 80" stroke="#1e293b" stroke-width="2" />
+
+  <!-- The "Track" Path -->
+  <path d="M25 75 C 40 75, 40 50, 55 50 S 75 25, 75 25" 
+        stroke="#38bdf8" 
+        stroke-width="8" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+        
+  <!-- Waypoints / Nodes -->
+  <circle cx="25" cy="75" r="7" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="55" cy="50" r="7" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="75" cy="25" r="7" fill="#38bdf8" stroke="#f8fafc" stroke-width="3"/>
+</svg>
