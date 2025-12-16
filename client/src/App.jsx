@@ -102,7 +102,20 @@ function App() {
     };
   }), [stats]);
 
-  const COLORS = ['#646cff', '#00C49F', '#FFBB28', '#FF8042', '#a78bfa', '#f472b6', '#3b82f6'];
+  const COLORS = [
+    '#646cff',  // 蓝紫色
+    '#00C49F',  // 青绿色
+    '#FFBB28',  // 金黄色
+    '#FF8042',  // 橙色
+    '#a78bfa',  // 淡紫色
+    '#f472b6',  // 粉色
+    '#3b82f6',  // 蓝色
+    '#10b981',  // 翠绿色
+    '#06b6d4',  // 青色
+    '#8b5cf6',  // 紫色
+    '#14b8a6',  // 青绿色
+    '#f59e0b'   // 琥珀色
+  ];
 
   const formatDuration = (ms) => {
     const seconds = Math.floor(ms / 1000);
