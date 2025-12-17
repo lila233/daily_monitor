@@ -37,6 +37,73 @@ export const updateVisit = (id, endTime, duration) => {
   return stmt.run(endTime, duration, id);
 };
 
+// Helper to determine the key for a visit
+export const getVisitKey = (visit) => {
+  let key = visit.app_name || 'Unknown App'; // Default to App Name
+  
+  // Broaden browser detection
+  const isBrowser = visit.app_name && /chrome|chromium|firefox|edge|brave|opera|safari/i.test(visit.app_name);
+
+  if (isBrowser) {
+      let domainFound = false;
+      let tempKey = null;
+
+      // 1. Try URL first
+      if (visit.url) {
+          try {
+              const urlObj = new URL(visit.url);
+              tempKey = urlObj.hostname;
+              domainFound = true;
+          } catch (e) {
+              // Invalid URL
+          }
+      } 
+      
+      // 2. Prepare Title for checking
+      let cleanTitle = visit.title || '';
+      // Remove common browser suffixes
+      const suffixes = [
+          ' - Google Chrome', ' - Microsoft Edge', ' - Mozilla Firefox', 
+          ' - Brave', ' - Opera', ' - Chromium'
+      ];
+      for (const suffix of suffixes) {
+          if (cleanTitle.endsWith(suffix)) {
+              cleanTitle = cleanTitle.slice(0, -suffix.length);
+              break;
+          }
+      }
+      
+      // 3. Unified Classification
+      const checkString = (tempKey ? tempKey : '') + ' ' + cleanTitle;
+      const lowerCheck = checkString.toLowerCase();
+
+      if (lowerCheck.includes('bilibili') || lowerCheck.includes('哔哩哔哩') || lowerCheck.includes('b23.tv')) {
+          key = 'www.bilibili.com';
+      } else if (lowerCheck.includes('youtube')) {
+          key = 'www.youtube.com';
+      } else if (lowerCheck.includes('github')) {
+          key = 'github.com';
+      } else if (lowerCheck.includes('zhihu') || lowerCheck.includes('知乎')) {
+          key = 'www.zhihu.com';
+      } else if (lowerCheck.includes('csdn')) {
+          key = 'blog.csdn.net';
+      } else if (lowerCheck.includes('stackoverflow')) {
+          key = 'stackoverflow.com';
+      } else if (lowerCheck.includes('chatgpt')) {
+          key = 'chatgpt.com';
+      } else {
+          // Fallback: If we have a domain, use it. Otherwise use the cleaned title.
+          // If the cleaned title is empty, revert to the original app name.
+          if (tempKey) {
+              key = tempKey;
+          } else if (cleanTitle) {
+              key = cleanTitle;
+          }
+      }
+  }
+  return key;
+};
+
 export const getHistory = (limit = 100, startTime = null, endTime = null) => {
   let query = `SELECT * FROM visits`;
   const params = [];
@@ -50,7 +117,13 @@ export const getHistory = (limit = 100, startTime = null, endTime = null) => {
   params.push(limit);
 
   const stmt = db.prepare(query);
-  return stmt.all(...params);
+  const visits = stmt.all(...params);
+  
+  // Add original_key to each visit
+  return visits.map(visit => ({
+    ...visit,
+    original_key: getVisitKey(visit)
+  }));
 };
 
 export const getDailyStats = (startTime = null, endTime = null) => {
@@ -72,29 +145,16 @@ export const getDailyStats = (startTime = null, endTime = null) => {
   const titleMap = {};
 
   for (const visit of visits) {
-    let key = visit.app_name || 'Unknown App'; // Default to App Name
+    const key = getVisitKey(visit);
     
-    // Broaden browser detection
-    const isBrowser = visit.app_name && /chrome|chromium|firefox|edge|brave|opera|safari/i.test(visit.app_name);
-
-    if (isBrowser) {
-        let domainFound = false;
-        let tempKey = null;
-
-        // 1. Try URL first
-        if (visit.url) {
-            try {
-                const urlObj = new URL(visit.url);
-                tempKey = urlObj.hostname;
-                domainFound = true;
-            } catch (e) {
-                // Invalid URL
-            }
-        } 
-        
-        // 2. Prepare Title for checking
-        let cleanTitle = visit.title || '';
-        // Remove common browser suffixes
+    // We also need the cleanTitle logic for titleMap, which is partly inside getVisitKey but not returned.
+    // However, looking at the previous code, cleanTitle logic was intertwined.
+    // Let's replicate the cleanTitle extraction simply here or slightly adjust getVisitKey to return it? 
+    // Changing getVisitKey signature might affect getHistory usage.
+    // Let's just re-extract cleanTitle here as it's only for titleMap "prettifying".
+    
+    let cleanTitle = visit.title || '';
+    if (visit.app_name && /chrome|chromium|firefox|edge|brave|opera|safari/i.test(visit.app_name)) {
         const suffixes = [
             ' - Google Chrome', ' - Microsoft Edge', ' - Mozilla Firefox', 
             ' - Brave', ' - Opera', ' - Chromium'
@@ -105,43 +165,15 @@ export const getDailyStats = (startTime = null, endTime = null) => {
                 break;
             }
         }
-        
-        // 3. Unified Classification
-        const checkString = (tempKey ? tempKey : '') + ' ' + cleanTitle;
-        const lowerCheck = checkString.toLowerCase();
+    }
 
-        if (lowerCheck.includes('bilibili') || lowerCheck.includes('哔哩哔哩') || lowerCheck.includes('b23.tv')) {
-            key = 'www.bilibili.com';
-        } else if (lowerCheck.includes('youtube')) {
-            key = 'www.youtube.com';
-        } else if (lowerCheck.includes('github')) {
-            key = 'github.com';
-        } else if (lowerCheck.includes('zhihu') || lowerCheck.includes('知乎')) {
-            key = 'www.zhihu.com';
-        } else if (lowerCheck.includes('csdn')) {
-            key = 'blog.csdn.net';
-        } else if (lowerCheck.includes('stackoverflow')) {
-            key = 'stackoverflow.com';
-        } else if (lowerCheck.includes('chatgpt')) {
-            key = 'chatgpt.com';
-        } else {
-            // Fallback: If we have a domain, use it. Otherwise use the cleaned title.
-            // If the cleaned title is empty, revert to the original app name.
-            if (tempKey) {
-                key = tempKey;
-            } else if (cleanTitle) {
-                key = cleanTitle;
-            }
-        }
-
-        // --- DYNAMIC TITLE UPDATE ---
-        // We want to find the "Representative Title" for this key.
-        // Usually the shortest title is the main site name (e.g., "GitHub" vs "User/Repo - GitHub").
-        // We only update if we have a clean title.
-        if (cleanTitle) {
-            if (!titleMap[key] || cleanTitle.length < titleMap[key].length) {
-                titleMap[key] = cleanTitle;
-            }
+    // --- DYNAMIC TITLE UPDATE ---
+    // We want to find the "Representative Title" for this key.
+    // Usually the shortest title is the main site name (e.g., "GitHub" vs "User/Repo - GitHub").
+    // We only update if we have a clean title.
+    if (cleanTitle) {
+        if (!titleMap[key] || cleanTitle.length < titleMap[key].length) {
+            titleMap[key] = cleanTitle;
         }
     }
 

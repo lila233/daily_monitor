@@ -70,7 +70,7 @@ function App() {
     try {
       const { startTime, endTime } = getDateRangeTimestamps()
       const [historyRes, statsRes] = await Promise.all([
-        axios.get(`/api/history?limit=200&startTime=${startTime}&endTime=${endTime}`),
+        axios.get(`/api/history?limit=5000&startTime=${startTime}&endTime=${endTime}`),
         axios.get(`/api/stats?startTime=${startTime}&endTime=${endTime}`)
       ])
       setHistory(historyRes.data)
@@ -139,28 +139,47 @@ function App() {
   const filteredHistory = useMemo(() => {
     let filtered = history
 
-    // 先按选中的应用筛选
-    if (selectedApp && selectedApp !== 'Others') {
-      // 找到选中项的 originalKey（用于匹配 history 中的原始数据）
-      // 从 processedStats 中查找，因为它包含所有数据
-      const selectedItem = processedStats.find(item => item.name === selectedApp);
-      const filterKey = selectedItem?.originalKey || selectedApp;
+    // Filter by selected app or category
+    if (selectedApp) {
+      if (selectedApp === 'Others') {
+         // Identify top items (which are NOT in "Others")
+         // Matches pieData slice logic: top 12 items.
+         const topItemsCount = 12; 
+         // We use slice(0, 12) to get the top 12 items that are explicitly shown.
+         // Any visit that has an original_key matching one of these should be EXCLUDED.
+         const topKeys = processedStats.slice(0, topItemsCount).map(item => item.originalKey);
+         
+         filtered = filtered.filter(visit => {
+            // Include if the visit's key is NOT in the top keys
+            // Use original_key if available (from new server update)
+            return visit.original_key && !topKeys.includes(visit.original_key);
+         });
+         
+      } else {
+          // Specific app selected
+          const selectedItem = processedStats.find(item => item.name === selectedApp);
+          const filterKey = selectedItem?.originalKey;
+          
+          if (filterKey) {
+              const filterKeyFallback = selectedApp;
+              filtered = filtered.filter(visit => {
+                  // Primary check: exact match on original_key
+                  if (visit.original_key === filterKey) return true;
+                  
+                  // Secondary check (fallback): fuzzy match if original_key is missing or for legacy data
+                  const titleLower = (visit.title || '').toLowerCase();
+                  const appNameLower = (visit.app_name || '').toLowerCase();
+                  const urlLower = (visit.url || '').toLowerCase();
+                  const filterKeyLower = filterKeyFallback.toLowerCase();
 
-      filtered = filtered.filter(visit => {
-        const titleLower = (visit.title || '').toLowerCase();
-        const appNameLower = (visit.app_name || '').toLowerCase();
-        const urlLower = (visit.url || '').toLowerCase();
-        const filterKeyLower = filterKey.toLowerCase();
-
-        // 检查 URL 中是否包含 filterKey（域名匹配）
-        if (urlLower.includes(filterKeyLower)) return true;
-        // 检查 title 中是否包含 filterKey
-        if (titleLower.includes(filterKeyLower)) return true;
-        // 检查 app_name 中是否包含 filterKey
-        if (appNameLower.includes(filterKeyLower)) return true;
-
-        return false;
-      })
+                  if (urlLower.includes(filterKeyLower)) return true;
+                  if (titleLower.includes(filterKeyLower)) return true;
+                  if (appNameLower.includes(filterKeyLower)) return true;
+                  
+                  return false;
+              });
+          }
+      }
     }
 
     // 再按搜索词筛选
@@ -212,9 +231,53 @@ function App() {
     return `${seconds}s`;
   }
 
-  // Summary Metrics
-  const totalDuration = useMemo(() => stats.reduce((acc, curr) => acc + curr.total_duration, 0), [stats]);
-  const mostUsedApp = stats.length > 0 ? stats[0].title : 'N/A';
+  // Summary Metrics Calculation
+  const globalTotalDuration = useMemo(() => stats.reduce((acc, curr) => acc + curr.total_duration, 0), [stats]);
+  const globalMostUsedApp = stats.length > 0 ? stats[0].title : 'N/A';
+  
+  // Calculate displayed metrics based on filter
+  const displayMetrics = useMemo(() => {
+    if (selectedApp && selectedApp !== 'Others') {
+      // Find stats for selected app
+      const selectedItem = processedStats.find(item => item.name === selectedApp);
+      const duration = selectedItem ? selectedItem.value : 0;
+      
+      return {
+        durationTitle: `Active Time (${selectedApp})`,
+        durationValue: duration,
+        mostUsedTitle: 'Selected Application',
+        mostUsedValue: selectedApp,
+        sessionCountTitle: `Sessions (${selectedApp})`,
+        sessionCountValue: filteredHistory.length
+      };
+    } else if (selectedApp === 'Others') {
+       // Logic for "Others" category
+       const topItemsCount = 12; // Matches pieData slice logic roughly
+       // Re-calculate others duration strictly from stats not in top 12? 
+       // Simpler: use the value from pieData if available, or sum stats.
+       // For now, let's just sum filtered history duration as an approximation or re-sum from stats
+       const othersTotal = processedStats.slice(topItemsCount).reduce((sum, item) => sum + item.value, 0);
+       
+       return {
+        durationTitle: 'Active Time (Others)',
+        durationValue: othersTotal,
+        mostUsedTitle: 'Category',
+        mostUsedValue: 'Others',
+        sessionCountTitle: 'Sessions (Others)',
+        sessionCountValue: filteredHistory.length
+       };
+    }
+    
+    // Default global view
+    return {
+      durationTitle: 'Total Active Time (Today)',
+      durationValue: globalTotalDuration,
+      mostUsedTitle: 'Most Used Application',
+      mostUsedValue: globalMostUsedApp,
+      sessionCountTitle: 'Total Sessions Tracked',
+      sessionCountValue: history.length
+    };
+  }, [selectedApp, processedStats, filteredHistory.length, globalTotalDuration, globalMostUsedApp, history.length]);
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -255,8 +318,8 @@ function App() {
         overflowY: 'auto'
       }}>
         {pieData.map((entry, index) => {
-          const percentage = totalDuration > 0
-            ? ((entry.value / totalDuration) * 100).toFixed(1)
+          const percentage = globalTotalDuration > 0
+            ? ((entry.value / globalTotalDuration) * 100).toFixed(1)
             : 0;
           const isSelected = selectedApp === entry.name;
           const color = getColor(entry, index);
@@ -313,7 +376,12 @@ function App() {
   };
 
   if (loading) {
-    return <div className="loading-container">Loading Dashboard...</div>
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        Loading Dashboard...
+      </div>
+    );
   }
 
   return (
@@ -350,18 +418,24 @@ function App() {
       {/* Summary Metrics */}
       <div className="summary-grid">
         <div className="summary-card">
-          <span className="label">Total Active Time (Today)</span>
-          <span className="value">{formatDuration(totalDuration)}</span>
+          <span className="label">{displayMetrics.durationTitle}</span>
+          <div className="summary-card-value-container">
+            <span className="value">{formatDuration(displayMetrics.durationValue)}</span>
+          </div>
         </div>
         <div className="summary-card">
-          <span className="label">Most Used Application</span>
-          <span className="value" style={{ fontSize: '1.2rem', marginTop: 'auto' }}>
-            {mostUsedApp}
-          </span>
+          <span className="label">{displayMetrics.mostUsedTitle}</span>
+          <div className="summary-card-value-container">
+            <div className="value text-value" title={displayMetrics.mostUsedValue}>
+              {displayMetrics.mostUsedValue}
+            </div>
+          </div>
         </div>
         <div className="summary-card">
-          <span className="label">Sessions Tracked</span>
-          <span className="value">{history.length}+</span>
+          <span className="label">{displayMetrics.sessionCountTitle}</span>
+          <div className="summary-card-value-container">
+            <span className="value">{displayMetrics.sessionCountValue}</span>
+          </div>
         </div>
       </div>
 
@@ -539,7 +613,7 @@ function App() {
               {filteredHistory.length > 0 ? (
                 filteredHistory.map(visit => (
                 <tr key={visit.id}>
-                  <td style={{ color: '#888', fontFamily: 'monospace' }}>
+                  <td className="time-cell">
                     {format(new Date(visit.start_time), 'HH:mm:ss')}
                   </td>
                   <td style={{ fontWeight: '500', color: '#fff' }}>{visit.app_name}</td>
@@ -551,8 +625,15 @@ function App() {
               ))
               ) : (
                 <tr>
-                  <td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-                    {searchFilter ? 'No matching activities found' : 'No activities recorded'}
+                  <td colSpan="4" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                    {selectedApp ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1.1rem', color: 'var(--text-primary)' }}>No recent logs for <strong style={{ color: 'var(--accent-color)' }}>{selectedApp}</strong></span>
+                        <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>Try changing the date range or selecting a different app.</span>
+                      </div>
+                    ) : (
+                      searchFilter ? 'No matching activities found' : 'No activities recorded'
+                    )}
                   </td>
                 </tr>
               )}

@@ -22,7 +22,10 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at top center, #1e293b, #020617);
+  background-color: #020617; /* Fallback and deepest background color */
+  /* Linear gradient with darker starting points to reduce "light source" brightness and remove noise */
+  background-image: linear-gradient(135deg, #0f172a 0%, #080f1e 50%, #020617 100%);
+  background-attachment: fixed;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
 }
@@ -297,11 +300,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--card-border);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05); /* Glass edge highlight */
   border-radius: 20px;
-  padding: 1.75rem;
+  padding: 1rem 1.5rem 1.5rem 1.5rem; /* Reduced top padding to move label higher */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .summary-card::before {
@@ -316,7 +322,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 .summary-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5), 0 0 20px var(--accent-glow);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5), 0 0 20px var(--accent-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
   border-color: rgba(139, 92, 246, 0.3);
 }
 
@@ -324,14 +330,23 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   font-size: 0.875rem;
   color: var(--text-secondary);
   display: block;
-  margin-bottom: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-bottom: 0.25rem; /* Reduced margin-bottom for label */
+  flex-shrink: 0;
+}
+
+/* Container for value to center it vertically in remaining space */
+.summary-card-value-container {
+  flex-grow: 1;
+  display: flex;
+  align-items: center; /* Vertical center */
+  justify-content: flex-start; /* Left align */
 }
 
 .summary-card .value {
-  font-size: 2.25rem;
+  font-size: 2rem;
   font-weight: 700;
   color: var(--text-primary);
   display: block;
@@ -339,6 +354,16 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   background: linear-gradient(to right, #fff, #e2e8f0);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.summary-card .text-value {
+  font-size: 1.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-text-fill-color: var(--text-primary);
 }
 
 /* Charts Grid */
@@ -354,11 +379,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--card-border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.05); /* Glass edge highlight */
   border-radius: 24px;
   padding: 2rem;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .card-header {
@@ -410,6 +435,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   border-radius: 16px;
   border: 1px solid var(--card-border);
   background: rgba(2, 6, 23, 0.3);
+  min-height: 250px; /* 确保表格区域始终有一定高度 */
+  max-height: 500px; /* 限制表格最大高度，超出则滚动 */
+  overflow-y: auto; /* 确保垂直滚动条在需要时出现 */
 }
 
 table {
@@ -450,32 +478,63 @@ tbody tr:hover td {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.time-cell {
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 /* Utilities */
 .loading-container {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 400px;
   color: var(--text-secondary);
+  font-size: 1.1rem;
+  font-weight: 500;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(139, 92, 246, 0.2);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
-  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.3); /* 更深的灰色，更透明 */
+  border-radius: 5px;
+  border: 2px solid transparent; /* 边框透明，看起来更宽 */
+  background-clip: padding-box; /* 确保边框内的背景可见 */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
+  background: rgba(148, 163, 184, 0.5); /* 悬停时亮度更高 */
 }
 
 .custom-tooltip {
