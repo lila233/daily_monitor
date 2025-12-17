@@ -7,7 +7,7 @@ function App() {
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeChart, setActiveChart] = useState('pie') // 'pie' or 'bar'
+  const [activeChart, setActiveChart] = useState('bar') // 'pie' or 'bar'
 
   // Date range state
   const [dateRange, setDateRange] = useState('today')
@@ -16,6 +16,7 @@ function App() {
 
   // Filter state
   const [searchFilter, setSearchFilter] = useState('')
+  const [selectedApp, setSelectedApp] = useState(null) // 图表联动筛选
 
   // Calculate date range timestamps
   const getDateRangeTimestamps = () => {
@@ -78,44 +79,88 @@ function App() {
     return () => clearInterval(interval)
   }, [dateRange, customStartDate, customEndDate])
 
-  // Filter history based on search
+  // Filter history based on search and selected app
   const filteredHistory = useMemo(() => {
-    if (!searchFilter) return history
-    const lowerFilter = searchFilter.toLowerCase()
-    return history.filter(visit =>
-      (visit.app_name && visit.app_name.toLowerCase().includes(lowerFilter)) ||
-      (visit.title && visit.title.toLowerCase().includes(lowerFilter)) ||
-      (visit.url && visit.url.toLowerCase().includes(lowerFilter))
-    )
-  }, [history, searchFilter])
+    let filtered = history
 
-  const pieData = useMemo(() => stats.map(item => {
-    let displayTitle = item.title;
-    if (item.title === 'www.bilibili.com') {
-      displayTitle = '哔哩哔哩 (゜-゜)つロ 干杯~';
+    // 先按选中的应用筛选
+    if (selectedApp && selectedApp !== 'Others') {
+      filtered = filtered.filter(visit =>
+        (visit.title && visit.title.toLowerCase().includes(selectedApp.toLowerCase())) ||
+        (visit.app_name && visit.app_name.toLowerCase().includes(selectedApp.toLowerCase()))
+      )
     }
 
-    return {
-      name: displayTitle,
-      displayName: displayTitle,
-      value: item.total_duration
-    };
-  }), [stats]);
+    // 再按搜索词筛选
+    if (searchFilter) {
+      const lowerFilter = searchFilter.toLowerCase()
+      filtered = filtered.filter(visit =>
+        (visit.app_name && visit.app_name.toLowerCase().includes(lowerFilter)) ||
+        (visit.title && visit.title.toLowerCase().includes(lowerFilter)) ||
+        (visit.url && visit.url.toLowerCase().includes(lowerFilter))
+      )
+    }
 
+    return filtered
+  }, [history, searchFilter, selectedApp])
+
+  const pieData = useMemo(() => {
+    if (!stats || stats.length === 0) return [];
+
+    // 1. 先处理名字（如 Bilibili）
+    const processedData = stats.map(item => {
+      let displayTitle = item.title;
+      if (item.title === 'www.bilibili.com') displayTitle = 'Bilibili';
+      return {
+        name: displayTitle,
+        displayName: displayTitle,
+        value: item.total_duration
+      };
+    });
+
+    // 2. 排序
+    processedData.sort((a, b) => b.value - a.value);
+
+    // 3. 合并小数据：只取前 15 名，剩下的合并为 "Others"
+    if (processedData.length > 16) {
+      const topItems = processedData.slice(0, 15);
+      const otherItems = processedData.slice(15);
+      const otherTotal = otherItems.reduce((sum, item) => sum + item.value, 0);
+
+      return [
+        ...topItems,
+        { name: 'Others', displayName: 'Others', value: otherTotal }
+      ];
+    }
+
+    return processedData;
+  }, [stats]);
+
+  // 颜色数组 - 不包含灰色，灰色专门用于 Others
   const COLORS = [
-    '#646cff',  // 蓝紫色
-    '#00C49F',  // 青绿色
-    '#FFBB28',  // 金黄色
-    '#FF8042',  // 橙色
-    '#a78bfa',  // 淡紫色
-    '#f472b6',  // 粉色
-    '#3b82f6',  // 蓝色
-    '#10b981',  // 翠绿色
-    '#06b6d4',  // 青色
-    '#8b5cf6',  // 紫色
-    '#14b8a6',  // 青绿色
-    '#f59e0b'   // 琥珀色
+    '#6366f1',  // Indigo:  深邃的蓝紫
+    '#10b981',  // Emerald: 清新的翠绿
+    '#f59e0b',  // Amber:   温暖的琥珀黄
+    '#ec4899',  // Pink:    现代感强的洋红
+    '#3b82f6',  // Blue:    经典的科技蓝
+    '#8b5cf6',  // Violet:  柔和的浅紫
+    '#14b8a6',  // Teal:    青色
+    '#f97316',  // Orange:  活力的橙色
+    '#06b6d4',  // Cyan:    明亮的青蓝
+    '#d946ef',  // Fuchsia: 亮紫红
+    '#84cc16',  // Lime:    酸橙绿
+    '#e11d48',  // Rose:    玫瑰红
+    '#0ea5e9',  // Sky:     天蓝色
+    '#a855f7',  // Purple:  紫色
+    '#22c55e',  // Green:   绿色
   ];
+  const OTHERS_COLOR = '#64748b'; // 灰色专门用于 Others
+
+  // 获取颜色 - Others 使用灰色，其他使用彩色
+  const getColor = (entry, index) => {
+    if (entry.name === 'Others') return OTHERS_COLOR;
+    return COLORS[index % COLORS.length];
+  };
 
   const formatDuration = (ms) => {
     const seconds = Math.floor(ms / 1000);
@@ -143,6 +188,87 @@ function App() {
       );
     }
     return null;
+  };
+
+  // 点击图表/图例时的处理函数
+  const handleChartClick = (data) => {
+    if (data && data.name) {
+      // 如果点击的是已选中的，则取消选中
+      if (selectedApp === data.name) {
+        setSelectedApp(null);
+      } else {
+        setSelectedApp(data.name);
+      }
+    }
+  };
+
+  // 自定义图例渲染 - 显示名称和百分比，支持点击
+  const renderCustomLegend = (props) => {
+    const { payload } = props;
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        paddingLeft: '0px',
+        maxHeight: '450px',
+        overflowY: 'auto'
+      }}>
+        {payload.map((entry, index) => {
+          const percentage = totalDuration > 0
+            ? ((entry.payload.value / totalDuration) * 100).toFixed(1)
+            : 0;
+          const isSelected = selectedApp === entry.payload.name;
+          const color = getColor(entry.payload, index);
+          return (
+            <div
+              key={`legend-${index}`}
+              onClick={() => handleChartClick(entry.payload)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                border: isSelected ? '1px solid #6366f1' : '1px solid transparent',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{
+                width: '12px',
+                height: '12px',
+                backgroundColor: color,
+                borderRadius: '2px',
+                flexShrink: 0
+              }} />
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '320px',
+                color: '#e2e8f0'
+              }}>
+                <span style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  marginRight: '12px'
+                }} title={entry.value}>
+                  {entry.value}
+                </span>
+                <span style={{ color: '#6366f1', fontWeight: '500', flexShrink: 0 }}>
+                  {percentage}%
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   if (loading) {
@@ -222,45 +348,105 @@ function App() {
           {stats.length > 0 ? (
             <ResponsiveContainer width="100%" height={500}>
               {activeChart === 'pie' ? (
-                <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 30 }}>
+                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                  {/* 选中项的外圈高亮环 */}
+                  {selectedApp && pieData.some(d => d.name === selectedApp) && (
+                    <Pie
+                      data={pieData.filter(d => d.name === selectedApp)}
+                      cx="35%"
+                      cy="50%"
+                      innerRadius={95}
+                      outerRadius={170}
+                      dataKey="value"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      fill="transparent"
+                      isAnimationActive={false}
+                    />
+                  )}
                   <Pie
                     data={pieData}
-                    cx="50%"
-                    cy="45%"
-                    innerRadius={80}
+                    cx="35%"
+                    cy="50%"
+                    innerRadius={100}
                     outerRadius={160}
-                    paddingAngle={5}
+                    paddingAngle={3}
+                    cornerRadius={5}
                     dataKey="value"
                     nameKey="displayName"
+                    stroke="none"
+                    onClick={(data) => handleChartClick(data)}
+                    style={{ cursor: 'pointer' }}
                   >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
+                    {pieData.map((entry, index) => {
+                      const isSelected = selectedApp === entry.name;
+                      return (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={getColor(entry, index)}
+                          opacity={selectedApp && !isSelected ? 0.4 : 1}
+                          style={{ cursor: 'pointer', transition: 'opacity 0.2s ease' }}
+                        />
+                      );
+                    })}
                   </Pie>
                   <Tooltip content={<CustomTooltip />} />
-                  <Legend 
-                    layout="horizontal" 
-                    verticalAlign="bottom" 
-                    align="center"
-                    wrapperStyle={{ paddingTop: '10px', fontSize: '14px' }} 
+                  <Legend
+                    layout="vertical"
+                    verticalAlign="middle"
+                    align="right"
+                    content={renderCustomLegend}
                   />
                 </PieChart>
               ) : (
                 <BarChart data={pieData} layout="vertical" margin={{ left: 0, right: 30, top: 20, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#444" />
                   <XAxis type="number" hide />
-                  <YAxis 
-                    dataKey="displayName" 
-                    type="category" 
+                  <YAxis
+                    dataKey="displayName"
+                    type="category"
                     width={200}
                     interval={0}
-                    tick={{ fill: '#e2e8f0', fontSize: 13, fontWeight: 500 }} 
+                    tick={({ x, y, payload }) => {
+                      const isSelected = selectedApp === payload.value;
+                      return (
+                        <text
+                          x={x}
+                          y={y}
+                          dy={4}
+                          textAnchor="end"
+                          fill={isSelected ? '#6366f1' : (selectedApp ? '#64748b' : '#e2e8f0')}
+                          fontSize={13}
+                          fontWeight={isSelected ? 700 : 500}
+                          style={{ transition: 'all 0.2s ease' }}
+                        >
+                          {payload.value}
+                        </text>
+                      );
+                    }}
                   />
                   <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} name="Duration" barSize={30}>
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
+                  <Bar
+                    dataKey="value"
+                    radius={[0, 4, 4, 0]}
+                    name="Duration"
+                    barSize={30}
+                    onClick={(data) => handleChartClick(data)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {pieData.map((entry, index) => {
+                      const isSelected = selectedApp === entry.name;
+                      return (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={getColor(entry, index)}
+                          opacity={selectedApp && !isSelected ? 0.4 : 1}
+                          stroke={isSelected ? '#fff' : 'transparent'}
+                          strokeWidth={isSelected ? 2 : 0}
+                          style={{ cursor: 'pointer', transition: 'opacity 0.2s ease' }}
+                        />
+                      );
+                    })}
                   </Bar>
                 </BarChart>
               )}
@@ -273,8 +459,39 @@ function App() {
 
       {/* History Table */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h2 style={{ margin: 0 }}>Recent Activity Log</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h2 style={{ margin: 0 }}>Recent Activity Log</h2>
+            {selectedApp && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                border: '1px solid #6366f1',
+                borderRadius: '20px',
+                padding: '4px 12px',
+                fontSize: '13px'
+              }}>
+                <span style={{ color: '#e2e8f0' }}>Filtered by: <strong style={{ color: '#6366f1' }}>{selectedApp}</strong></span>
+                <button
+                  onClick={() => setSelectedApp(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    padding: '0 4px',
+                    fontSize: '16px',
+                    lineHeight: 1
+                  }}
+                  title="Clear filter"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
           <input
             type="text"
             placeholder="Search by app, title, or URL..."
