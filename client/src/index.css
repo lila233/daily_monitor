@@ -1,16 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-gradient-start: #0f172a;
-  --bg-gradient-end: #1e293b;
-  --card-bg: rgba(30, 41, 59, 0.7);
-  --card-border: rgba(148, 163, 184, 0.1);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --accent-color: #38bdf8;
-  --accent-glow: rgba(56, 189, 248, 0.3);
-  --success-color: #4ade80;
-  --input-bg: rgba(15, 23, 42, 0.6);
+  --bg-gradient-start: #020617; /* Slate 950 */
+  --bg-gradient-end: #0f172a;   /* Slate 900 */
+  --card-bg: rgba(15, 23, 42, 0.6);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --text-primary: #f1f5f9;      /* Slate 100 */
+  --text-secondary: #94a3b8;    /* Slate 400 */
+  --accent-color: #8b5cf6;      /* Violet 500 */
+  --accent-color-rgb: 139, 92, 246; /* RGB for Violet 500 */
+  --accent-secondary: #06b6d4;  /* Cyan 500 */
+  --accent-glow: rgba(139, 92, 246, 0.25);
+  --success-color: #10b981;
+  --input-bg: rgba(2, 6, 23, 0.5);
   
   font-family: 'Inter', sans-serif;
   line-height: 1.5;
@@ -20,7 +22,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at top left, #1e293b, #0f172a);
+  background: radial-gradient(circle at top center, #1e293b, #020617);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
 }
@@ -44,13 +46,14 @@ body {
 }
 
 .dashboard-header h1 {
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(to right, #fff, #94a3b8);
+  background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.03em;
+  text-shadow: 0 2px 10px rgba(167, 139, 250, 0.2);
 }
 
 .header-controls {
@@ -65,23 +68,25 @@ body {
   background: var(--input-bg);
   border: 1px solid var(--card-border);
   color: var(--text-primary);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
   font-family: inherit;
   font-size: 0.875rem;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
 }
 
 .control-input:hover,
 .control-select:hover {
-  border-color: rgba(148, 163, 184, 0.3);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(30, 41, 59, 0.5);
 }
 
 .control-input:focus,
 .control-select:focus {
   border-color: var(--accent-color);
   box-shadow: 0 0 0 2px var(--accent-glow);
+  background: rgba(30, 41, 59, 0.8);
 }
 
 .control-select {
@@ -92,6 +97,126 @@ body {
   background-position: right 0.75rem center;
   background-size: 1rem;
   padding-right: 2.5rem;
+}
+
+/* Custom Select */
+.custom-select-container {
+  position: relative;
+  min-width: 180px;
+  user-select: none;
+}
+
+.custom-select-trigger {
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.custom-select-trigger:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.custom-select-trigger.open {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+  background: rgba(30, 41, 59, 0.8);
+}
+
+.custom-select-trigger .arrow {
+  color: var(--text-secondary);
+  transition: transform 0.3s ease;
+}
+
+.custom-select-trigger.open .arrow {
+  color: var(--accent-color);
+}
+
+.custom-select-options {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: rgba(15, 23, 42, 0.95); /* Darker, more opaque for legibility */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 0.5rem;
+  z-index: 100;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0,0,0,0.2);
+  animation: slideDown 0.2s ease-out;
+  transform-origin: top center;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.custom-option {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+  margin-bottom: 2px;
+}
+
+.custom-option:last-child {
+  margin-bottom: 0;
+}
+
+.custom-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.custom-option.selected {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--accent-color);
+  font-weight: 500;
+}
+
+/* Date Input Styling Override */
+input[type="date"] {
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.6);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 .date-separator {
@@ -114,14 +239,14 @@ body {
   background-color: var(--input-bg);
   margin: 0;
   font: inherit;
-  color: var(--accent-color);
-  width: 1.25em;
-  height: 1.25em;
+  color: var(--accent-color); /* This color is used for the checkmark itself */
+  width: 1.15em;
+  height: 1.15em;
   border: 1px solid var(--card-border);
-  border-radius: 4px;
+  border-radius: 8px; /* More rounded corners */
   display: grid;
   place-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .checkbox-wrapper input[type="checkbox"]::before {
@@ -130,15 +255,17 @@ body {
   height: 0.65em;
   transform: scale(0);
   transition: 120ms transform ease-in-out;
-  box-shadow: inset 1em 1em white;
+  box-shadow: inset 1em 1em var(--text-primary); /* Checkmark color */
   transform-origin: center;
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-  background-color: currentColor;
+  background-color: transparent; /* Ensure checkmark is not covered by pseudo-element's background */
 }
 
 .checkbox-wrapper input[type="checkbox"]:checked {
-  background-color: var(--accent-color);
+  background-color: rgba(var(--accent-color-rgb), 0.2); /* Translucent accent background */
   border-color: var(--accent-color);
+  color: var(--text-primary); /* Ensures currentColor makes the checkmark white */
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .checkbox-wrapper input[type="checkbox"]:checked::before {
@@ -167,33 +294,51 @@ body {
 
 .summary-card {
   background: var(--card-bg);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 1.5rem;
-  transition: transform 0.2s, box-shadow 0.2s;
+  border-radius: 20px;
+  padding: 1.75rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
 }
 
 .summary-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-  border-color: rgba(148, 163, 184, 0.2);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5), 0 0 20px var(--accent-glow);
+  border-color: rgba(139, 92, 246, 0.3);
 }
 
 .summary-card .label {
   font-size: 0.875rem;
   color: var(--text-secondary);
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .summary-card .value {
-  font-size: 2rem;
+  font-size: 2.25rem;
   font-weight: 700;
   color: var(--text-primary);
   display: block;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.03em;
+  background: linear-gradient(to right, #fff, #e2e8f0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Charts Grid */
@@ -205,12 +350,15 @@ body {
 }
 
 .card {
-  background: #1e293b;
+  background: var(--card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 1.5rem;
+  border-radius: 24px;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .card-header {
@@ -230,18 +378,21 @@ body {
 }
 
 .toggle-btn {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--card-border);
   color: var(--text-primary);
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1.2rem;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.875rem;
-  transition: background-color 0.2s;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .toggle-btn:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .card h3 {
@@ -256,36 +407,47 @@ body {
 /* Table */
 .table-container {
   overflow-x: auto;
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid var(--card-border);
+  background: rgba(2, 6, 23, 0.3);
 }
 
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.875rem;
 }
 
 thead tr {
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(30, 41, 59, 0.4);
 }
 
 th {
   text-align: left;
-  padding: 1rem 1.5rem;
+  padding: 1.25rem 1.5rem;
   color: var(--text-secondary);
   font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
   white-space: nowrap;
+  border-bottom: 1px solid var(--card-border);
 }
 
 td {
   padding: 1rem 1.5rem;
-  border-top: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--card-border);
   color: var(--text-primary);
+  transition: background-color 0.2s;
 }
 
-tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* Utilities */

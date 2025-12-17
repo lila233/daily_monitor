@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
 import { format, startOfDay, endOfDay, subDays } from 'date-fns'
+import CustomSelect from './components/CustomSelect'
 
 function App() {
   const [history, setHistory] = useState([])
@@ -13,6 +14,14 @@ function App() {
   const [dateRange, setDateRange] = useState('today')
   const [customStartDate, setCustomStartDate] = useState('')
   const [customEndDate, setCustomEndDate] = useState('')
+
+  const dateRangeOptions = [
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last7days', label: 'Last 7 Days' },
+    { value: 'last30days', label: 'Last 30 Days' },
+    { value: 'custom', label: 'Custom Range' }
+  ];
 
   // Filter state
   const [searchFilter, setSearchFilter] = useState('')
@@ -169,23 +178,23 @@ function App() {
 
   // 颜色数组 - 不包含灰色，灰色专门用于 Others
   const COLORS = [
-    '#6366f1',  // Indigo:  深邃的蓝紫
-    '#10b981',  // Emerald: 清新的翠绿
-    '#f59e0b',  // Amber:   温暖的琥珀黄
-    '#ec4899',  // Pink:    现代感强的洋红
-    '#3b82f6',  // Blue:    经典的科技蓝
-    '#8b5cf6',  // Violet:  柔和的浅紫
-    '#14b8a6',  // Teal:    青色
-    '#f97316',  // Orange:  活力的橙色
-    '#06b6d4',  // Cyan:    明亮的青蓝
-    '#d946ef',  // Fuchsia: 亮紫红
-    '#84cc16',  // Lime:    酸橙绿
-    '#e11d48',  // Rose:    玫瑰红
-    '#0ea5e9',  // Sky:     天蓝色
-    '#a855f7',  // Purple:  紫色
-    '#22c55e',  // Green:   绿色
+    '#8b5cf6', // Violet:  Primary Accent
+    '#3b82f6', // Blue:    Tech Blue
+    '#06b6d4', // Cyan:    Bright Cyan
+    '#10b981', // Emerald: Success Green
+    '#f59e0b', // Amber:   Warmth
+    '#ec4899', // Pink:    Vibrant
+    '#6366f1', // Indigo
+    '#14b8a6', // Teal
+    '#f97316', // Orange
+    '#d946ef', // Fuchsia
+    '#84cc16', // Lime
+    '#e11d48', // Rose
+    '#0ea5e9', // Sky
+    '#a855f7', // Purple
+    '#22c55e', // Green
   ];
-  const OTHERS_COLOR = '#64748b'; // 灰色专门用于 Others
+  const OTHERS_COLOR = '#475569'; // Slate 600 for Others
 
   // 获取颜色 - Others 使用灰色，其他使用彩色
   const getColor = (entry, index) => {
@@ -263,8 +272,8 @@ function App() {
                 cursor: 'pointer',
                 padding: '5px 8px',
                 borderRadius: '6px',
-                backgroundColor: isSelected ? '#2d3a52' : 'transparent',
-                border: isSelected ? '1px solid #6366f1' : '1px solid transparent',
+                backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+                border: isSelected ? '1px solid #8b5cf6' : '1px solid transparent',
                 transition: 'all 0.2s ease'
               }}
             >
@@ -273,7 +282,8 @@ function App() {
                 height: '10px',
                 backgroundColor: color,
                 borderRadius: '2px',
-                flexShrink: 0
+                flexShrink: 0,
+                boxShadow: isSelected ? `0 0 8px ${color}` : 'none'
               }} />
               <div style={{
                 display: 'flex',
@@ -311,17 +321,11 @@ function App() {
       <div className="dashboard-header">
         <h1>Daily Monitor</h1>
         <div className="header-controls">
-          <select
+          <CustomSelect
             value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="control-select"
-          >
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="last7days">Last 7 Days</option>
-            <option value="last30days">Last 30 Days</option>
-            <option value="custom">Custom Range</option>
-          </select>
+            options={dateRangeOptions}
+            onChange={(newValue) => setDateRange(newValue)}
+          />
 
           {dateRange === 'custom' && (
             <>
@@ -434,7 +438,7 @@ function App() {
                           y={y}
                           dy={4}
                           textAnchor="end"
-                          fill={isSelected ? '#6366f1' : (selectedApp ? '#64748b' : '#e2e8f0')}
+                          fill={isSelected ? '#a78bfa' : (selectedApp ? '#64748b' : '#94a3b8')}
                           fontSize={13}
                           fontWeight={isSelected ? 700 : 500}
                           style={{ transition: 'all 0.2s ease' }}
@@ -486,13 +490,14 @@ function App() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                backgroundColor: '#2d3a52',
-                border: '1px solid #6366f1',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                border: '1px solid #8b5cf6',
                 borderRadius: '20px',
                 padding: '4px 12px',
-                fontSize: '13px'
+                fontSize: '13px',
+                boxShadow: '0 0 10px rgba(139, 92, 246, 0.2)'
               }}>
-                <span style={{ color: '#e2e8f0' }}>Filtered by: <strong style={{ color: '#6366f1' }}>{selectedApp}</strong></span>
+                <span style={{ color: '#e2e8f0' }}>Filtered by: <strong style={{ color: '#a78bfa' }}>{selectedApp}</strong></span>
                 <button
                   onClick={() => setSelectedApp(null)}
                   style={{
