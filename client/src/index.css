@@ -205,8 +205,7 @@ body {
 }
 
 .card {
-  background: var(--card-bg);
-  backdrop-filter: blur(12px);
+  background: #1e293b;
   border: 1px solid var(--card-border);
   border-radius: 16px;
   padding: 1.5rem;
@@ -324,4 +323,22 @@ tbody tr:hover {
   padding: 0.75rem 1rem !important;
   box-shadow: 0 4px 6px rgba(0,0,0,0.3);
   opacity: 1 !important;
+}
+
+/* Remove focus outline on SVG elements (pie chart click) */
+svg:focus,
+svg *:focus,
+.recharts-wrapper:focus,
+.recharts-wrapper *:focus,
+.recharts-surface:focus,
+.recharts-pie-sector:focus,
+path:focus,
+g:focus {
+  outline: none !important;
+}
+
+/* Ensure Recharts has transparent background */
+.recharts-wrapper,
+.recharts-surface {
+  background: transparent !important;
 }

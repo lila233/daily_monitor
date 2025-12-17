@@ -7,7 +7,7 @@ function App() {
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeChart, setActiveChart] = useState('bar') // 'pie' or 'bar'
+  const [activeChart, setActiveChart] = useState('pie') // 'pie' or 'bar'
 
   // Date range state
   const [dateRange, setDateRange] = useState('today')
@@ -79,16 +79,79 @@ function App() {
     return () => clearInterval(interval)
   }, [dateRange, customStartDate, customEndDate])
 
+  // 处理后的完整数据（排序后）
+  const processedStats = useMemo(() => {
+    if (!stats || stats.length === 0) return [];
+
+    const processedData = stats.map(item => {
+      return {
+        name: item.title,
+        displayName: item.title,
+        originalKey: item.original_key,
+        value: item.total_duration
+      };
+    });
+
+    processedData.sort((a, b) => b.value - a.value);
+    return processedData;
+  }, [stats]);
+
+  // 饼状图数据：最多13个（12 + Others）
+  const pieData = useMemo(() => {
+    if (processedStats.length > 12) {
+      const topItems = processedStats.slice(0, 12);
+      const otherItems = processedStats.slice(12);
+      const otherTotal = otherItems.reduce((sum, item) => sum + item.value, 0);
+
+      return [
+        ...topItems,
+        { name: 'Others', displayName: 'Others', originalKey: 'Others', value: otherTotal }
+      ];
+    }
+    return processedStats;
+  }, [processedStats]);
+
+  // 柱状图数据：最多16个（15 + Others）
+  const barData = useMemo(() => {
+    if (processedStats.length > 15) {
+      const topItems = processedStats.slice(0, 15);
+      const otherItems = processedStats.slice(15);
+      const otherTotal = otherItems.reduce((sum, item) => sum + item.value, 0);
+
+      return [
+        ...topItems,
+        { name: 'Others', displayName: 'Others', originalKey: 'Others', value: otherTotal }
+      ];
+    }
+    return processedStats;
+  }, [processedStats]);
+
   // Filter history based on search and selected app
   const filteredHistory = useMemo(() => {
     let filtered = history
 
     // 先按选中的应用筛选
     if (selectedApp && selectedApp !== 'Others') {
-      filtered = filtered.filter(visit =>
-        (visit.title && visit.title.toLowerCase().includes(selectedApp.toLowerCase())) ||
-        (visit.app_name && visit.app_name.toLowerCase().includes(selectedApp.toLowerCase()))
-      )
+      // 找到选中项的 originalKey（用于匹配 history 中的原始数据）
+      // 从 processedStats 中查找，因为它包含所有数据
+      const selectedItem = processedStats.find(item => item.name === selectedApp);
+      const filterKey = selectedItem?.originalKey || selectedApp;
+
+      filtered = filtered.filter(visit => {
+        const titleLower = (visit.title || '').toLowerCase();
+        const appNameLower = (visit.app_name || '').toLowerCase();
+        const urlLower = (visit.url || '').toLowerCase();
+        const filterKeyLower = filterKey.toLowerCase();
+
+        // 检查 URL 中是否包含 filterKey（域名匹配）
+        if (urlLower.includes(filterKeyLower)) return true;
+        // 检查 title 中是否包含 filterKey
+        if (titleLower.includes(filterKeyLower)) return true;
+        // 检查 app_name 中是否包含 filterKey
+        if (appNameLower.includes(filterKeyLower)) return true;
+
+        return false;
+      })
     }
 
     // 再按搜索词筛选
@@ -102,39 +165,7 @@ function App() {
     }
 
     return filtered
-  }, [history, searchFilter, selectedApp])
-
-  const pieData = useMemo(() => {
-    if (!stats || stats.length === 0) return [];
-
-    // 1. 先处理名字（如 Bilibili）
-    const processedData = stats.map(item => {
-      let displayTitle = item.title;
-      if (item.title === 'www.bilibili.com') displayTitle = 'Bilibili';
-      return {
-        name: displayTitle,
-        displayName: displayTitle,
-        value: item.total_duration
-      };
-    });
-
-    // 2. 排序
-    processedData.sort((a, b) => b.value - a.value);
-
-    // 3. 合并小数据：只取前 15 名，剩下的合并为 "Others"
-    if (processedData.length > 16) {
-      const topItems = processedData.slice(0, 15);
-      const otherItems = processedData.slice(15);
-      const otherTotal = otherItems.reduce((sum, item) => sum + item.value, 0);
-
-      return [
-        ...topItems,
-        { name: 'Others', displayName: 'Others', value: otherTotal }
-      ];
-    }
-
-    return processedData;
-  }, [stats]);
+  }, [history, searchFilter, selectedApp, processedStats])
 
   // 颜色数组 - 不包含灰色，灰色专门用于 Others
   const COLORS = [
@@ -203,43 +234,43 @@ function App() {
   };
 
   // 自定义图例渲染 - 显示名称和百分比，支持点击
-  const renderCustomLegend = (props) => {
-    const { payload } = props;
+  const renderCustomLegend = () => {
+    // 直接使用 pieData，不依赖 Recharts 传入的 payload（避免重复项）
     return (
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '6px',
+        gap: '4px',
         paddingLeft: '0px',
-        maxHeight: '450px',
+        maxHeight: '480px',
         overflowY: 'auto'
       }}>
-        {payload.map((entry, index) => {
+        {pieData.map((entry, index) => {
           const percentage = totalDuration > 0
-            ? ((entry.payload.value / totalDuration) * 100).toFixed(1)
+            ? ((entry.value / totalDuration) * 100).toFixed(1)
             : 0;
-          const isSelected = selectedApp === entry.payload.name;
-          const color = getColor(entry.payload, index);
+          const isSelected = selectedApp === entry.name;
+          const color = getColor(entry, index);
           return (
             <div
               key={`legend-${index}`}
-              onClick={() => handleChartClick(entry.payload)}
+              onClick={() => handleChartClick(entry)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '10px',
+                gap: '8px',
                 fontSize: '13px',
                 cursor: 'pointer',
-                padding: '6px 10px',
+                padding: '5px 8px',
                 borderRadius: '6px',
-                backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                backgroundColor: isSelected ? '#2d3a52' : 'transparent',
                 border: isSelected ? '1px solid #6366f1' : '1px solid transparent',
                 transition: 'all 0.2s ease'
               }}
             >
               <div style={{
-                width: '12px',
-                height: '12px',
+                width: '10px',
+                height: '10px',
                 backgroundColor: color,
                 borderRadius: '2px',
                 flexShrink: 0
@@ -248,7 +279,7 @@ function App() {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                width: '320px',
+                width: '300px',
                 color: '#e2e8f0'
               }}>
                 <span style={{
@@ -256,9 +287,9 @@ function App() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  marginRight: '12px'
-                }} title={entry.value}>
-                  {entry.value}
+                  marginRight: '10px'
+                }} title={entry.displayName}>
+                  {entry.displayName}
                 </span>
                 <span style={{ color: '#6366f1', fontWeight: '500', flexShrink: 0 }}>
                   {percentage}%
@@ -346,37 +377,23 @@ function App() {
           </div>
           
           {stats.length > 0 ? (
-            <ResponsiveContainer width="100%" height={500}>
+            <ResponsiveContainer width="100%" height={520}>
               {activeChart === 'pie' ? (
-                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                  {/* 选中项的外圈高亮环 */}
-                  {selectedApp && pieData.some(d => d.name === selectedApp) && (
-                    <Pie
-                      data={pieData.filter(d => d.name === selectedApp)}
-                      cx="35%"
-                      cy="50%"
-                      innerRadius={95}
-                      outerRadius={170}
-                      dataKey="value"
-                      stroke="#fff"
-                      strokeWidth={2}
-                      fill="transparent"
-                      isAnimationActive={false}
-                    />
-                  )}
+                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ background: 'transparent' }}>
                   <Pie
                     data={pieData}
-                    cx="35%"
+                    cx="40%"
                     cy="50%"
-                    innerRadius={100}
-                    outerRadius={160}
-                    paddingAngle={3}
-                    cornerRadius={5}
+                    innerRadius={120}
+                    outerRadius={190}
+                    paddingAngle={2}
+                    cornerRadius={3}
                     dataKey="value"
                     nameKey="displayName"
                     stroke="none"
                     onClick={(data) => handleChartClick(data)}
                     style={{ cursor: 'pointer' }}
+                    isAnimationActive={false}
                   >
                     {pieData.map((entry, index) => {
                       const isSelected = selectedApp === entry.name;
@@ -385,6 +402,8 @@ function App() {
                           key={`cell-${index}`}
                           fill={getColor(entry, index)}
                           opacity={selectedApp && !isSelected ? 0.4 : 1}
+                          stroke={isSelected ? '#fff' : 'none'}
+                          strokeWidth={isSelected ? 3 : 0}
                           style={{ cursor: 'pointer', transition: 'opacity 0.2s ease' }}
                         />
                       );
@@ -399,13 +418,13 @@ function App() {
                   />
                 </PieChart>
               ) : (
-                <BarChart data={pieData} layout="vertical" margin={{ left: 0, right: 30, top: 20, bottom: 20 }}>
+                <BarChart data={barData} layout="vertical" margin={{ left: 20, right: 50, top: 10, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#444" />
                   <XAxis type="number" hide />
                   <YAxis
                     dataKey="displayName"
                     type="category"
-                    width={200}
+                    width={220}
                     interval={0}
                     tick={({ x, y, payload }) => {
                       const isSelected = selectedApp === payload.value;
@@ -430,11 +449,11 @@ function App() {
                     dataKey="value"
                     radius={[0, 4, 4, 0]}
                     name="Duration"
-                    barSize={30}
+                    barSize={26}
                     onClick={(data) => handleChartClick(data)}
                     style={{ cursor: 'pointer' }}
                   >
-                    {pieData.map((entry, index) => {
+                    {barData.map((entry, index) => {
                       const isSelected = selectedApp === entry.name;
                       return (
                         <Cell
@@ -459,7 +478,7 @@ function App() {
 
       {/* History Table */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <h2 style={{ margin: 0 }}>Recent Activity Log</h2>
             {selectedApp && (
@@ -467,7 +486,7 @@ function App() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                backgroundColor: '#2d3a52',
                 border: '1px solid #6366f1',
                 borderRadius: '20px',
                 padding: '4px 12px',
