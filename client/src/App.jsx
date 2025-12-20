@@ -89,7 +89,7 @@ function App() {
 
     const startPolling = () => {
         if (!intervalId) {
-            intervalId = setInterval(fetchData, 3000);
+            intervalId = setInterval(fetchData, 1000);
         }
     };
 

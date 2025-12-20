@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const IDLE_CHECK_EXE = join(__dirname, 'tools', 'IdleCheck.exe');
 const IDLE_THRESHOLD_SECONDS = 120; // 2 minutes
-const DB_UPDATE_INTERVAL_MS = 2500; // Update DB every ~3 seconds (allow for jitter)
+const DB_UPDATE_INTERVAL_MS = 900; // Update DB every ~1 second (real-time)
 
 // --- Persistent Idle Check Process ---
 let idleProcess = null;

@@ -92,8 +92,8 @@ To ensure the monitor does not affect high-performance tasks (e.g., gaming), sev
 
   - **Polling Frequencies**:
   - **Active Window**: Every **1000ms** (1s).
-  - **Database Write**: Every **~3000ms** (3s) debounced.
-  - **Frontend Fetch**: Every **3000ms** (3s), auto-pauses when hidden.
+  - **Database Write**: Every **~1000ms** (1s) debounced.
+  - **Frontend Fetch**: Every **1000ms** (1s), auto-pauses when hidden.
 - **Database**:
   - `server/db.js`: `PRAGMA journal_mode = WAL` is enabled to prevent read/write locks.
 
