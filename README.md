@@ -90,11 +90,10 @@ To ensure the monitor does not affect high-performance tasks (e.g., gaming), sev
   - `IDLE_THRESHOLD_SECONDS = 120`: Stops tracking after 2 minutes of no input.
   - `IdleCheck.exe`: A persistent C# background process communicates via StdIO, avoiding the overhead of spawning new processes repeatedly.
 
-- **Polling Frequencies**:
+  - **Polling Frequencies**:
   - **Active Window**: Every **1000ms** (1s).
-  - **Database Write**: Every **10000ms** (10s) debounced.
+  - **Database Write**: Every **~3000ms** (3s) debounced.
   - **Frontend Fetch**: Every **3000ms** (3s), auto-pauses when hidden.
-
 - **Database**:
   - `server/db.js`: `PRAGMA journal_mode = WAL` is enabled to prevent read/write locks.
 
