@@ -1,7 +1,69 @@
 import activeWin from 'active-win';
 import { insertVisit, updateVisit } from './db.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { spawn } from 'child_process';
+import readline from 'readline';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const IDLE_CHECK_EXE = join(__dirname, 'tools', 'IdleCheck.exe');
+const IDLE_THRESHOLD_SECONDS = 120; // 2 minutes
+const DB_UPDATE_INTERVAL_MS = 10000; // Update DB every 10 seconds
+
+// --- Persistent Idle Check Process ---
+let idleProcess = null;
+let idleResolver = null;
+
+function startIdleProcess() {
+    idleProcess = spawn(IDLE_CHECK_EXE);
+    
+    const rl = readline.createInterface({
+        input: idleProcess.stdout,
+        terminal: false
+    });
+
+    rl.on('line', (line) => {
+        if (idleResolver) {
+            const seconds = parseInt(line.trim(), 10);
+            idleResolver(isNaN(seconds) ? 0 : seconds);
+            idleResolver = null;
+        }
+    });
+
+    idleProcess.stderr.on('data', (data) => {
+        console.error(`IdleCheck Error: ${data}`);
+    });
+
+    idleProcess.on('close', (code) => {
+        console.log(`IdleCheck process exited with code ${code}. Restarting...`);
+        setTimeout(startIdleProcess, 1000);
+    });
+}
+
+// Start the process immediately
+startIdleProcess();
+
+function getIdleTimeSeconds() {
+    return new Promise((resolve) => {
+        if (!idleProcess || idleProcess.killed) {
+            resolve(0);
+            return;
+        }
+        // Queue the resolver
+        idleResolver = resolve;
+        // Trigger a check
+        try {
+            idleProcess.stdin.write("check\n");
+        } catch (e) {
+            resolve(0);
+        }
+    });
+}
+// -------------------------------------
 
 let currentSession = null;
+let lastDbUpdate = 0;
 
 // Store latest data from Chrome Extension
 let lastExtensionData = {
@@ -45,6 +107,29 @@ function getSessionKey(win) {
 
 async function checkWindow() {
   try {
+    // 1. Check Idle Time First (Async now)
+    const idleSeconds = await getIdleTimeSeconds();
+    if (idleSeconds > IDLE_THRESHOLD_SECONDS) {
+        if (currentSession) {
+             // User has been idle for a while.
+             // Correct the end time to when they actually stopped (now - idle)
+             const actualEndTime = Date.now() - (idleSeconds * 1000);
+             
+             // Only update if actualEndTime is after start_time (sanity check)
+             if (actualEndTime > currentSession.start_time) {
+                 currentSession.end_time = actualEndTime;
+                 currentSession.duration = currentSession.end_time - currentSession.start_time;
+                 // Force save on session end
+                 updateVisit(currentSession.id, currentSession.end_time, currentSession.duration);
+             }
+             
+             console.log(`[Monitor] Idle for ${idleSeconds}s. Stopping session.`);
+             currentSession = null;
+        }
+        // If no session, stay idle.
+        return; 
+    }
+
     const win = await activeWin();
     
     if (!win) return;
@@ -74,14 +159,20 @@ async function checkWindow() {
     if (currentSession) {
       // Check if it's the same session (key match)
       if (currentSession.key === newKey) {
-        // Just update the duration in memory and DB
+        // Just update the duration in memory
         currentSession.end_time = now;
         currentSession.duration = currentSession.end_time - currentSession.start_time;
         
-        // Update DB periodically (every check) to save progress
-        updateVisit(currentSession.id, currentSession.end_time, currentSession.duration);
+        // Debounce DB updates: only update DB every 10 seconds or so
+        if (now - lastDbUpdate > DB_UPDATE_INTERVAL_MS) {
+             updateVisit(currentSession.id, currentSession.end_time, currentSession.duration);
+             lastDbUpdate = now;
+        }
+
       } else {
         // Switched to a different context
+        // Finalize previous session in DB
+        updateVisit(currentSession.id, currentSession.end_time, currentSession.duration);
         currentSession = null; // Clear session
       }
     }
@@ -100,6 +191,7 @@ async function checkWindow() {
         const info = insertVisit(newVisit);
         // Store the key in memory so we can compare next time
         currentSession = { ...newVisit, id: info.lastInsertRowid, key: newKey };
+        lastDbUpdate = now;
         console.log(`[Monitor] Started: ${win.owner.name} - ${win.title} (Key: ${newKey})`);
     }
 

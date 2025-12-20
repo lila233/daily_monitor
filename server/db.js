@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(__dirname, 'history.db');
 
 const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
 
 // Create table if not exists
 db.exec(`

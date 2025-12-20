@@ -83,9 +83,43 @@ function App() {
   }
 
   useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 5000)
-    return () => clearInterval(interval)
+    fetchData(); // Initial fetch
+
+    let intervalId = null;
+
+    const startPolling = () => {
+        if (!intervalId) {
+            intervalId = setInterval(fetchData, 3000);
+        }
+    };
+
+    const stopPolling = () => {
+        if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+        }
+    };
+
+    const handleVisibilityChange = () => {
+        if (document.hidden) {
+            stopPolling();
+        } else {
+            fetchData(); // Update immediately when coming back
+            startPolling();
+        }
+    };
+
+    // Start polling by default if visible
+    if (!document.hidden) {
+        startPolling();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+        stopPolling();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [dateRange, customStartDate, customEndDate])
 
   // 处理后的完整数据（排序后）

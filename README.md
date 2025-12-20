@@ -1,100 +1,108 @@
-# Chrome Monitor
+# Daily Monitor (Usage Tracker)
 
-这是一个用于监控和分析 Google Chrome 使用情况的全栈应用程序。它能够追踪您在 Chrome 中的活动，将数据存储在本地 SQLite 数据库中，并通过一个美观的 React 前端仪表盘展示您的使用统计信息。
+An automated, local-first system to track your daily computer usage, visualizing active applications and website visits. Designed for Windows with minimal performance impact.
 
-## ✨ 功能特性
+## 🏗 Project Architecture
 
-*   **实时监控**: 使用 `active-win` 实时检测当前活动的窗口和 Chrome 标签页。
-*   **智能域名归类**: 自动将同一网站（如 Bilibili、YouTube）的不同页面访问合并为同一个会话，不再产生碎片化记录。
-*   **数据持久化**: 使用 `better-sqlite3` 将监控数据安全地存储在本地 `history.db` 数据库中。
-*   **可视化仪表盘**: 基于 React 和 Recharts 构建的现代化前端界面，直观展示您的浏览习惯。
-*   **后台静默运行**: 提供 VBS 脚本，支持在 Windows 下无终端窗口后台启动监控。
-*   **全栈开发**:
-    *   **后端**: Node.js + Express
-    *   **前端**: React + Vite
-*   **开发便捷**: 使用 `concurrently` 一键同时启动前后端服务。
+The system consists of three main components:
 
-## 🛠️ 技术栈
+### 1. Server (Node.js)
+- **Location**: `/server`
+- **Role**: The core controller.
+- **Key Features**:
+  - **Window Tracking**: Uses `active-win` to poll the currently active window every **1 second**.
+  - **Idle Detection**: Spawns a lightweight C# subprocess (`IdleCheck.exe`) to detect system-wide inactivity. If inactive for **120 seconds**, tracking is paused.
+  - **Persistence**: Stores data in a local SQLite database (`server/history.db`).
+    - **Optimization**: Uses **WAL mode** (Write-Ahead Logging) for non-blocking I/O.
+    - **Debouncing**: Writes to disk every **10 seconds** to minimize disk wear and lag.
+  - **API**: Provides REST endpoints (`/api/stats`, `/api/history`) for the frontend and receives URL updates from the Chrome Extension.
 
-### 后端 (Server)
-*   **Node.js & Express**: 提供 API 接口和服务。
-*   **active-win**: 获取当前活动窗口的详细信息。
-*   **better-sqlite3**: 高性能的 SQLite 数据库驱动。
-*   **date-fns**: 强大的日期处理库。
+### 2. Client (React + Vite)
+- **Location**: `/client`
+- **Role**: Visual dashboard for data analysis.
+- **Key Features**:
+  - **Tech Stack**: React, Recharts, Axios.
+  - **Smart Polling**: Polls data every **3 seconds** ONLY when the tab is visible. Automatically hibernates when backgrounded (zero resource usage while gaming).
+  - **Visuals**: Provides Pie charts and Bar charts for daily usage distribution.
 
-### 前端 (Client)
-*   **React**: 用于构建用户界面的 JavaScript 库。
-*   **Vite**: 超快的构建工具和开发服务器。
-*   **Recharts**: 基于 React 的组合式图表库。
-*   **Axios**: 用于发送 HTTP 请求。
+### 3. Chrome Extension
+- **Location**: `/chrome-extension`
+- **Role**: Enhances tracking granularity.
+- **Function**: Since getting browser URLs from the OS level is restricted/unreliable, this extension pushes the current Tab URL and Title to the local server (`http://localhost:3001`) whenever you switch tabs or navigate.
 
-## 🚀 快速开始
+---
 
-### 1. 环境准备
-确保您的系统已安装 [Node.js](https://nodejs.org/) (推荐使用最新的 LTS 版本)。
+## 🚀 Setup & Deployment
 
-### 2. 安装依赖
+### Prerequisites
+- **Node.js**: v16+ installed.
+- **Windows OS**: Required for `active-win` and `IdleCheck.exe` (native Windows API usage).
 
-在项目根目录下运行以下命令来安装后端和前端的依赖：
+### Installation
 
-```bash
-# 安装根目录（后端）依赖
-npm install
+1.  **Install Root Dependencies (Server)**:
+    ```bash
+    npm install
+    ```
 
-# 安装前端依赖
-cd client
-npm install
-cd ..
-```
+2.  **Install Client Dependencies**:
+    ```bash
+    cd client
+    npm install
+    ```
 
-> **注意**: 如果您在 Windows 上遇到 `better-sqlite3` 安装问题，通常是因为缺少构建工具。本项目已配置为尝试使用预编译版本，如果仍然失败，请确保您的 Node.js 版本与 `better-sqlite3` 兼容，或安装 Windows Build Tools。
+3.  **Build the Client**:
+    ```bash
+    cd client
+    npm run build
+    ```
+    *(The server is configured to serve the `client/dist` folder statically at `http://localhost:3001`)*
 
-### 3. 运行应用
+4.  **Setup Chrome Extension**:
+    - Open Chrome and go to `chrome://extensions/`.
+    - Enable **Developer mode** (top right).
+    - Click **Load unpacked**.
+    - Select the `chrome-extension` folder in this project.
 
-**生产模式 (推荐)**：
-在项目根目录下运行以下命令，将启动集成了前端界面的后端服务：
+### Running the Project
 
+#### Option A: Background Mode (Recommended for Daily Use)
+Double-click the **`run_monitor_bg.vbs`** script in the root directory.
+- This will start the server silently without opening a terminal window.
+- The dashboard will be available at `http://localhost:3001`.
+
+#### Option B: Foreground Mode (For Debugging)
+Run the following command in the root directory:
 ```bash
 npm start
 ```
 
-启动后：
-*   **应用地址**: 访问 [http://localhost:3001](http://localhost:3001) 查看仪表盘。
-
-**开发模式**:
-如果您需要修改前端代码并实时预览：
-```bash
-npm run dev
-```
-
-## 👻 后台运行 (Windows)
-
-如果您希望在不占用终端窗口的情况下运行监控程序：
-
-1.  找到项目根目录下的 **`run_monitor_bg.vbs`** 文件。
-2.  双击该文件即可在后台启动监控服务（包含 Web 界面）。
-3.  您依然可以通过访问 [http://localhost:3001](http://localhost:3001) 来查看统计数据。
-4.  如需停止服务，请打开任务管理器，结束 `node.exe` 进程。
-
-## ❓ 常见问题 (Troubleshooting)
-
-### PowerShell 脚本执行错误
-如果您在 Windows PowerShell 中运行 `npm install` 或 `npm run` 时遇到类似以下的错误：
-`npm : File ... cannot be loaded because running scripts is disabled on this system.`
-
-这是因为 PowerShell 的执行策略限制。您可以尝试以下解决方法：
-
-1.  **临时更改策略 (推荐)**:
-    在管理员权限的 PowerShell 中运行：
-    ```powershell
-    Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-    ```
-
-2.  **使用 cmd**:
-    您可以直接使用 `npm.cmd` 代替 `npm`，例如 `npm.cmd install`。
-
-### `better-sqlite3` 构建失败
-如果在安装过程中遇到构建错误，请尝试更新 `better-sqlite3` 到最新版本，或者安装 Visual Studio Build Tools。
+### Stopping the Monitor
+Double-click **`stop_monitor.bat`** to gracefully kill the Node.js process.
 
 ---
-Happy Coding! 🚀
+
+## 🛠 Performance & Configuration Details
+
+To ensure the monitor does not affect high-performance tasks (e.g., gaming), several optimizations are hardcoded:
+
+- **Idle Logic**: `server/monitor.js`
+  - `IDLE_THRESHOLD_SECONDS = 120`: Stops tracking after 2 minutes of no input.
+  - `IdleCheck.exe`: A persistent C# background process communicates via StdIO, avoiding the overhead of spawning new processes repeatedly.
+
+- **Polling Frequencies**:
+  - **Active Window**: Every **1000ms** (1s).
+  - **Database Write**: Every **10000ms** (10s) debounced.
+  - **Frontend Fetch**: Every **3000ms** (3s), auto-pauses when hidden.
+
+- **Database**:
+  - `server/db.js`: `PRAGMA journal_mode = WAL` is enabled to prevent read/write locks.
+
+---
+
+## 📂 Key Files Reference
+
+- `server/monitor.js`: Main logic for active window polling and session management.
+- `server/tools/IdleCheck.cs`: Source code for the idle detection tool.
+- `server/db.js`: Database schema and query logic (including domain classification rules).
+- `client/src/App.jsx`: Main frontend component handling data visualization and smart polling logic.
