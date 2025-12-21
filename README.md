@@ -89,6 +89,8 @@ To ensure the monitor does not affect high-performance tasks (e.g., gaming), sev
 - **Idle Logic**: `server/monitor.js`
   - `IDLE_THRESHOLD_SECONDS = 120`: Stops tracking after 2 minutes of no input.
   - `IdleCheck.exe`: A persistent C# background process communicates via StdIO, avoiding the overhead of spawning new processes repeatedly.
+  - **Media Playing Detection**: Uses `MediaCheck.ps1` (PowerShell + WinRT API) to detect if any media is playing. When media is playing (e.g., watching videos, listening to music), idle detection is bypassed to prevent false positives.
+  - **Gamepad Detection**: Uses `GamepadCheck.exe` (XInput API) to detect Xbox/XInput-compatible controller activity. When gamepad buttons are pressed or sticks are moved, idle detection is bypassed.
 
   - **Polling Frequencies**:
   - **Active Window**: Every **1000ms** (1s).
@@ -102,6 +104,8 @@ To ensure the monitor does not affect high-performance tasks (e.g., gaming), sev
 ## 📂 Key Files Reference
 
 - `server/monitor.js`: Main logic for active window polling and session management.
-- `server/tools/IdleCheck.cs`: Source code for the idle detection tool.
+- `server/tools/IdleCheck.cs`: Source code for the idle detection tool (keyboard/mouse input).
+- `server/tools/MediaCheck.ps1`: PowerShell script for media playback detection.
+- `server/tools/GamepadCheck.cs`: Source code for gamepad input detection.
 - `server/db.js`: Database schema and query logic (including domain classification rules).
 - `client/src/App.jsx`: Main frontend component handling data visualization and smart polling logic.

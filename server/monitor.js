@@ -2,18 +2,116 @@ import activeWin from 'active-win';
 import { insertVisit, updateVisit } from './db.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { spawn } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import readline from 'readline';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const IDLE_CHECK_EXE = join(__dirname, 'tools', 'IdleCheck.exe');
+const GAMEPAD_CHECK_EXE = join(__dirname, 'tools', 'GamepadCheck.exe');
+const MEDIA_CHECK_PS1 = join(__dirname, 'tools', 'MediaCheck.ps1');
 const IDLE_THRESHOLD_SECONDS = 120; // 2 minutes
+const MEDIA_CHECK_INTERVAL_MS = 5000; // Check media status every 5 seconds (less frequent to reduce overhead)
+const GAMEPAD_CHECK_INTERVAL_MS = 1000; // Check gamepad every 1 second
 const DB_UPDATE_INTERVAL_MS = 900; // Update DB every ~1 second (real-time)
 
 // --- Persistent Idle Check Process ---
 let idleProcess = null;
 let idleResolver = null;
+
+// --- Media Playing State ---
+let isMediaPlaying = false;
+let lastMediaCheck = 0;
+
+// --- Gamepad State ---
+let gamepadProcess = null;
+let gamepadResolver = null;
+let isGamepadActive = false;
+let lastGamepadCheck = 0;
+
+function startGamepadProcess() {
+    gamepadProcess = spawn(GAMEPAD_CHECK_EXE);
+
+    const rl = readline.createInterface({
+        input: gamepadProcess.stdout,
+        terminal: false
+    });
+
+    rl.on('line', (line) => {
+        if (gamepadResolver) {
+            // Parse "connected,active" format
+            const parts = line.trim().split(',');
+            const connected = parts[0] === 'true';
+            const active = parts[1] === 'true';
+            gamepadResolver({ connected, active });
+            gamepadResolver = null;
+        }
+    });
+
+    gamepadProcess.stderr.on('data', (data) => {
+        console.error(`GamepadCheck Error: ${data}`);
+    });
+
+    gamepadProcess.on('close', (code) => {
+        console.log(`GamepadCheck process exited with code ${code}. Restarting...`);
+        setTimeout(startGamepadProcess, 1000);
+    });
+}
+
+// Start gamepad process
+startGamepadProcess();
+
+function getGamepadState() {
+    return new Promise((resolve) => {
+        if (!gamepadProcess || gamepadProcess.killed) {
+            resolve({ connected: false, active: false });
+            return;
+        }
+        gamepadResolver = resolve;
+        try {
+            gamepadProcess.stdin.write("check\n");
+        } catch (e) {
+            resolve({ connected: false, active: false });
+        }
+    });
+}
+
+// Periodically update gamepad state
+async function updateGamepadState() {
+    const now = Date.now();
+    if (now - lastGamepadCheck > GAMEPAD_CHECK_INTERVAL_MS) {
+        const state = await getGamepadState();
+        isGamepadActive = state.active;
+        lastGamepadCheck = now;
+    }
+    return isGamepadActive;
+}
+
+function checkMediaPlaying() {
+    return new Promise((resolve) => {
+        execFile('powershell', [
+            '-NoProfile',
+            '-ExecutionPolicy', 'Bypass',
+            '-File', MEDIA_CHECK_PS1
+        ], { timeout: 3000 }, (error, stdout) => {
+            if (error) {
+                resolve(false);
+                return;
+            }
+            resolve(stdout.trim().toLowerCase() === 'true');
+        });
+    });
+}
+
+// Periodically update media playing state (less frequent to reduce overhead)
+async function updateMediaState() {
+    const now = Date.now();
+    if (now - lastMediaCheck > MEDIA_CHECK_INTERVAL_MS) {
+        isMediaPlaying = await checkMediaPlaying();
+        lastMediaCheck = now;
+    }
+    return isMediaPlaying;
+}
 
 function startIdleProcess() {
     idleProcess = spawn(IDLE_CHECK_EXE);
@@ -109,12 +207,20 @@ async function checkWindow() {
   try {
     // 1. Check Idle Time First (Async now)
     const idleSeconds = await getIdleTimeSeconds();
-    if (idleSeconds > IDLE_THRESHOLD_SECONDS) {
+
+    // 2. Check if media is playing (skip idle detection if media is playing)
+    const mediaPlaying = await updateMediaState();
+
+    // 3. Check if gamepad has activity (skip idle detection if gamepad is active)
+    const gamepadActive = await updateGamepadState();
+
+    // Only consider idle if: idle time exceeded AND no media is playing AND no gamepad activity
+    if (idleSeconds > IDLE_THRESHOLD_SECONDS && !mediaPlaying && !gamepadActive) {
         if (currentSession) {
              // User has been idle for a while.
              // Correct the end time to when they actually stopped (now - idle)
              const actualEndTime = Date.now() - (idleSeconds * 1000);
-             
+
              // Only update if actualEndTime is after start_time (sanity check)
              if (actualEndTime > currentSession.start_time) {
                  currentSession.end_time = actualEndTime;
@@ -122,12 +228,12 @@ async function checkWindow() {
                  // Force save on session end
                  updateVisit(currentSession.id, currentSession.end_time, currentSession.duration);
              }
-             
+
              console.log(`[Monitor] Idle for ${idleSeconds}s. Stopping session.`);
              currentSession = null;
         }
         // If no session, stay idle.
-        return; 
+        return;
     }
 
     const win = await activeWin();

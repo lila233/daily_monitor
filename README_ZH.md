@@ -89,6 +89,8 @@ npm start
 - **挂机逻辑**:
   - `IDLE_THRESHOLD_SECONDS = 120`: 离开电脑 2 分钟自动停表。
   - `IdleCheck.exe`: 常驻后台，通过标准输入输出通信，避免了频繁启动进程的巨大开销。
+  - **媒体播放检测**: 使用 `MediaCheck.ps1` (PowerShell + WinRT API) 检测是否有媒体正在播放。当你在看视频、听音乐时，即使没有键鼠操作也不会被判定为挂机。
+  - **手柄输入检测**: 使用 `GamepadCheck.exe` (XInput API) 检测 Xbox/XInput 兼容手柄的输入。用手柄玩游戏时不会被误判为挂机。
 
 - **轮询频率**:
   - **活跃窗口**: 每 **1000ms** (1秒) 检测一次。
@@ -103,6 +105,8 @@ npm start
 ## 📂 核心文件参考
 
 - `server/monitor.js`: 核心监测逻辑与会话管理。
-- `server/tools/IdleCheck.cs`: 挂机检测工具源码。
+- `server/tools/IdleCheck.cs`: 挂机检测工具源码（键鼠输入检测）。
+- `server/tools/MediaCheck.ps1`: 媒体播放检测脚本。
+- `server/tools/GamepadCheck.cs`: 手柄输入检测工具源码。
 - `server/db.js`: 数据库模式与分类规则。
 - `client/src/App.jsx`: 前端界面与智能刷新逻辑。
