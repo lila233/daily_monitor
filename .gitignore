@@ -7,6 +7,8 @@ client/dist/
 
 # Database
 server/history.db
+*.db-shm
+*.db-wal
 
 # Environment variables
 .env
