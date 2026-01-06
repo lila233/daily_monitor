@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import axios from 'axios'
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
 import { format, startOfDay, endOfDay, subDays } from 'date-fns'
@@ -169,65 +169,64 @@ function App() {
     return processedStats;
   }, [processedStats]);
 
+  // Pre-index history by original_key for O(1) lookup
+  const historyIndex = useMemo(() => {
+    const index = new Map();
+    history.forEach(visit => {
+      if (visit.original_key) {
+        if (!index.has(visit.original_key)) {
+          index.set(visit.original_key, []);
+        }
+        index.get(visit.original_key).push(visit);
+      }
+    });
+    return index;
+  }, [history]);
+
+  // Pre-compute top keys Set for "Others" filtering
+  const topKeysSet = useMemo(() => {
+    return new Set(processedStats.slice(0, 12).map(item => item.originalKey));
+  }, [processedStats]);
+
   // Filter history based on search and selected app
   const filteredHistory = useMemo(() => {
-    let filtered = history
+    let filtered;
 
-    // Filter by selected app or category
+    // Filter by selected app or category using index
     if (selectedApp) {
       if (selectedApp === 'Others') {
-         // Identify top items (which are NOT in "Others")
-         // Matches pieData slice logic: top 12 items.
-         const topItemsCount = 12; 
-         // We use slice(0, 12) to get the top 12 items that are explicitly shown.
-         // Any visit that has an original_key matching one of these should be EXCLUDED.
-         const topKeys = processedStats.slice(0, topItemsCount).map(item => item.originalKey);
-         
-         filtered = filtered.filter(visit => {
-            // Include if the visit's key is NOT in the top keys
-            // Use original_key if available (from new server update)
-            return visit.original_key && !topKeys.includes(visit.original_key);
-         });
-         
+        // Get all entries NOT in top 12
+        filtered = history.filter(visit =>
+          visit.original_key && !topKeysSet.has(visit.original_key)
+        );
       } else {
-          // Specific app selected
-          const selectedItem = processedStats.find(item => item.name === selectedApp);
-          const filterKey = selectedItem?.originalKey;
-          
-          if (filterKey) {
-              const filterKeyFallback = selectedApp;
-              filtered = filtered.filter(visit => {
-                  // Primary check: exact match on original_key
-                  if (visit.original_key === filterKey) return true;
-                  
-                  // Secondary check (fallback): fuzzy match if original_key is missing or for legacy data
-                  const titleLower = (visit.title || '').toLowerCase();
-                  const appNameLower = (visit.app_name || '').toLowerCase();
-                  const urlLower = (visit.url || '').toLowerCase();
-                  const filterKeyLower = filterKeyFallback.toLowerCase();
+        // Use index for direct lookup
+        const selectedItem = processedStats.find(item => item.name === selectedApp);
+        const filterKey = selectedItem?.originalKey;
 
-                  if (urlLower.includes(filterKeyLower)) return true;
-                  if (titleLower.includes(filterKeyLower)) return true;
-                  if (appNameLower.includes(filterKeyLower)) return true;
-                  
-                  return false;
-              });
-          }
+        if (filterKey && historyIndex.has(filterKey)) {
+          filtered = historyIndex.get(filterKey);
+        } else {
+          filtered = [];
+        }
       }
+    } else {
+      filtered = history;
     }
 
-    // 再按搜索词筛选
+    // Search filter (only if there's a search term)
     if (searchFilter) {
-      const lowerFilter = searchFilter.toLowerCase()
+      const lowerFilter = searchFilter.toLowerCase();
       filtered = filtered.filter(visit =>
         (visit.app_name && visit.app_name.toLowerCase().includes(lowerFilter)) ||
         (visit.title && visit.title.toLowerCase().includes(lowerFilter)) ||
         (visit.url && visit.url.toLowerCase().includes(lowerFilter))
-      )
+      );
     }
 
-    return filtered
-  }, [history, searchFilter, selectedApp, processedStats])
+    // Limit displayed results for performance
+    return filtered.slice(0, 500);
+  }, [history, historyIndex, topKeysSet, searchFilter, selectedApp, processedStats])
 
   // 颜色数组 - 不包含灰色，灰色专门用于 Others
   const COLORS = [
@@ -250,10 +249,10 @@ function App() {
   const OTHERS_COLOR = '#475569'; // Slate 600 for Others
 
   // 获取颜色 - Others 使用灰色，其他使用彩色
-  const getColor = (entry, index) => {
+  const getColor = useCallback((entry, index) => {
     if (entry.name === 'Others') return OTHERS_COLOR;
     return COLORS[index % COLORS.length];
-  };
+  }, []);
 
   const formatDuration = (ms) => {
     const seconds = Math.floor(ms / 1000);
@@ -328,21 +327,17 @@ function App() {
   };
 
   // 点击图表/图例时的处理函数
-  const handleChartClick = (data) => {
+  const handleChartClick = useCallback((data) => {
     if (data && data.name) {
       // 如果点击的是已选中的，则取消选中
-      if (selectedApp === data.name) {
-        setSelectedApp(null);
-      } else {
-        setSelectedApp(data.name);
-      }
+      setSelectedApp(prev => prev === data.name ? null : data.name);
     }
-  };
+  }, []);
 
   // 自定义图例渲染 - 显示名称和百分比，支持点击
-  const renderCustomLegend = () => {
+  const renderCustomLegend = useMemo(() => {
     // 直接使用 pieData，不依赖 Recharts 传入的 payload（避免重复项）
-    return (
+    return () => (
       <div style={{
         display: 'flex',
         flexDirection: 'column',
@@ -407,7 +402,7 @@ function App() {
         })}
       </div>
     );
-  };
+  }, [pieData, globalTotalDuration, selectedApp, getColor, handleChartClick]);
 
   if (loading) {
     return (

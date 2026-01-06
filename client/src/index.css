@@ -445,6 +445,35 @@ table {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.875rem;
+  table-layout: fixed;
+}
+
+/* Column widths for consistent alignment */
+table th:nth-child(1),
+table td:nth-child(1) {
+  width: 85px;
+}
+
+table th:nth-child(2),
+table td:nth-child(2) {
+  width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+table th:nth-child(3),
+table td:nth-child(3) {
+  width: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+table th:nth-child(4),
+table td:nth-child(4) {
+  width: 90px;
+  text-align: right;
 }
 
 thead tr {
