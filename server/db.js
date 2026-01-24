@@ -41,7 +41,7 @@ export const updateVisit = (id, endTime, duration) => {
 // Helper to determine the key for a visit
 export const getVisitKey = (visit) => {
   let key = visit.app_name || 'Unknown App'; // Default to App Name
-  
+
   // Broaden browser detection
   const isBrowser = visit.app_name && /chrome|chromium|firefox|edge|brave|opera|safari/i.test(visit.app_name);
 
@@ -58,13 +58,13 @@ export const getVisitKey = (visit) => {
           } catch (e) {
               // Invalid URL
           }
-      } 
-      
+      }
+
       // 2. Prepare Title for checking
       let cleanTitle = visit.title || '';
       // Remove common browser suffixes
       const suffixes = [
-          ' - Google Chrome', ' - Microsoft Edge', ' - Mozilla Firefox', 
+          ' - Google Chrome', ' - Microsoft Edge', ' - Mozilla Firefox',
           ' - Brave', ' - Opera', ' - Chromium'
       ];
       for (const suffix of suffixes) {
@@ -73,7 +73,7 @@ export const getVisitKey = (visit) => {
               break;
           }
       }
-      
+
       // 3. Unified Classification
       const checkString = (tempKey ? tempKey : '') + ' ' + cleanTitle;
       const lowerCheck = checkString.toLowerCase();
@@ -92,6 +92,12 @@ export const getVisitKey = (visit) => {
           key = 'stackoverflow.com';
       } else if (lowerCheck.includes('chatgpt')) {
           key = 'chatgpt.com';
+      } else if (lowerCheck.includes('daily monitor') || lowerCheck.includes('localhost')) {
+          key = 'localhost';
+      } else if (lowerCheck.includes('linux do') || lowerCheck.includes('linux.do')) {
+          key = 'linux.do';
+      } else if (lowerCheck.includes('claude')) {
+          key = 'claude.ai';
       } else {
           // Fallback: If we have a domain, use it. Otherwise use the cleaned title.
           // If the cleaned title is empty, revert to the original app name.
@@ -142,22 +148,16 @@ export const getDailyStats = (startTime = null, endTime = null) => {
 
   const visits = stmt.all(actualStart, actualEnd);
   const statsMap = {};
-  // Helper to track the "best" title for each key (shortest title is usually the site name)
-  const titleMap = {};
+  // Collect all titles for each key to analyze patterns
+  const titlesMap = {};
 
   for (const visit of visits) {
     const key = getVisitKey(visit);
-    
-    // We also need the cleanTitle logic for titleMap, which is partly inside getVisitKey but not returned.
-    // However, looking at the previous code, cleanTitle logic was intertwined.
-    // Let's replicate the cleanTitle extraction simply here or slightly adjust getVisitKey to return it? 
-    // Changing getVisitKey signature might affect getHistory usage.
-    // Let's just re-extract cleanTitle here as it's only for titleMap "prettifying".
-    
+
     let cleanTitle = visit.title || '';
     if (visit.app_name && /chrome|chromium|firefox|edge|brave|opera|safari/i.test(visit.app_name)) {
         const suffixes = [
-            ' - Google Chrome', ' - Microsoft Edge', ' - Mozilla Firefox', 
+            ' - Google Chrome', ' - Microsoft Edge', ' - Mozilla Firefox',
             ' - Brave', ' - Opera', ' - Chromium'
         ];
         for (const suffix of suffixes) {
@@ -168,14 +168,12 @@ export const getDailyStats = (startTime = null, endTime = null) => {
         }
     }
 
-    // --- DYNAMIC TITLE UPDATE ---
-    // We want to find the "Representative Title" for this key.
-    // Usually the shortest title is the main site name (e.g., "GitHub" vs "User/Repo - GitHub").
-    // We only update if we have a clean title.
+    // Collect all titles for this key
     if (cleanTitle) {
-        if (!titleMap[key] || cleanTitle.length < titleMap[key].length) {
-            titleMap[key] = cleanTitle;
+        if (!titlesMap[key]) {
+            titlesMap[key] = [];
         }
+        titlesMap[key].push(cleanTitle);
     }
 
     if (!statsMap[key]) {
@@ -184,25 +182,115 @@ export const getDailyStats = (startTime = null, endTime = null) => {
     statsMap[key] += visit.duration;
   }
 
-  // Convert map to array and sort
+  // Helper function to extract site name from titles by finding common suffix/prefix
+  const extractSiteName = (titles) => {
+    if (!titles || titles.length === 0) return null;
+
+    // Common separators used in page titles
+    const separators = [' - ', ' | ', ' – ', ' — ', ' :: ', ' » ', ' · '];
+
+    // Count suffix occurrences (text after last separator)
+    const suffixCount = {};
+    // Count prefix occurrences (text before first separator)
+    const prefixCount = {};
+
+    for (const title of titles) {
+      // Try each separator
+      for (const sep of separators) {
+        const lastIdx = title.lastIndexOf(sep);
+        if (lastIdx !== -1) {
+          const suffix = title.slice(lastIdx + sep.length).trim();
+          if (suffix && suffix.length > 1 && suffix.length < 50) {
+            suffixCount[suffix] = (suffixCount[suffix] || 0) + 1;
+          }
+        }
+
+        const firstIdx = title.indexOf(sep);
+        if (firstIdx !== -1) {
+          const prefix = title.slice(0, firstIdx).trim();
+          if (prefix && prefix.length > 1 && prefix.length < 50) {
+            prefixCount[prefix] = (prefixCount[prefix] || 0) + 1;
+          }
+        }
+      }
+    }
+
+    // Find the most common suffix (usually the site name)
+    let bestSuffix = null;
+    let bestSuffixCount = 0;
+    for (const [suffix, count] of Object.entries(suffixCount)) {
+      // Must appear in at least 30% of titles or at least 2 times
+      if (count > bestSuffixCount && (count >= 2 || count / titles.length >= 0.3)) {
+        bestSuffix = suffix;
+        bestSuffixCount = count;
+      }
+    }
+
+    // Find the most common prefix
+    let bestPrefix = null;
+    let bestPrefixCount = 0;
+    for (const [prefix, count] of Object.entries(prefixCount)) {
+      if (count > bestPrefixCount && (count >= 2 || count / titles.length >= 0.3)) {
+        bestPrefix = prefix;
+        bestPrefixCount = count;
+      }
+    }
+
+    // Prefer suffix (more common pattern: "Article Title - Site Name")
+    // But if prefix appears more often, use that
+    if (bestSuffixCount >= bestPrefixCount && bestSuffix) {
+      return bestSuffix;
+    } else if (bestPrefix) {
+      return bestPrefix;
+    }
+
+    // Fallback: return the shortest title (likely the homepage)
+    let shortest = titles[0];
+    for (const t of titles) {
+      if (t.length < shortest.length) {
+        shortest = t;
+      }
+    }
+    return shortest;
+  };
+
+  // Fixed titles for well-known sites (override auto-detection)
   const fixedTitles = {
-    'www.bilibili.com': '哔哩哔哩 (Bilibili)',
+    'www.bilibili.com': '哔哩哔哩',
     'www.youtube.com': 'YouTube',
     'github.com': 'GitHub',
-    'www.zhihu.com': '知乎 (Zhihu)',
+    'www.zhihu.com': '知乎',
     'blog.csdn.net': 'CSDN',
     'stackoverflow.com': 'Stack Overflow',
     'chatgpt.com': 'ChatGPT',
-    'localhost': 'Daily Monitor Dashboard' // Added this mapping
+    'claude.ai': 'Claude',
+    'www.google.com': 'Google',
+    'localhost': 'Daily Monitor'
   };
 
   const stats = Object.entries(statsMap).map(([key, duration]) => {
+    let displayTitle;
+
     // 1. Check if we have a hardcoded title for this key
-    let displayTitle = fixedTitles[key];
-    
-    // 2. If not, use the shortest title found dynamically
-    if (!displayTitle) {
-        displayTitle = titleMap[key] || key;
+    if (fixedTitles[key]) {
+      displayTitle = fixedTitles[key];
+    }
+    // 2. For domains (contains dot), try to auto-detect site name
+    else if (key.includes('.')) {
+      // Try to extract site name from title patterns
+      if (titlesMap[key] && titlesMap[key].length > 0) {
+        displayTitle = extractSiteName(titlesMap[key]);
+      }
+      // Fallback: extract site name from domain
+      if (!displayTitle) {
+        let domain = key.replace(/^www\./, '');
+        const siteName = domain.split('.')[0];
+        displayTitle = siteName.charAt(0).toUpperCase() + siteName.slice(1);
+      }
+    }
+    // 3. For apps (no dot), use the key directly (it's the app name)
+    else {
+      displayTitle = key;
     }
     
     return {

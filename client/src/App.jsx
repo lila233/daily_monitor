@@ -3,8 +3,11 @@ import axios from 'axios'
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
 import { format, startOfDay, endOfDay, subDays } from 'date-fns'
 import CustomSelect from './components/CustomSelect'
+import ThemeToggle from './components/ThemeToggle'
+import { useTheme } from './context/ThemeContext'
 
 function App() {
+  const { theme } = useTheme()
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState([])
   const [loading, setLoading] = useState(true)
@@ -228,31 +231,11 @@ function App() {
     return filtered.slice(0, 500);
   }, [history, historyIndex, topKeysSet, searchFilter, selectedApp, processedStats])
 
-  // 颜色数组 - 不包含灰色，灰色专门用于 Others
-  const COLORS = [
-    '#8b5cf6', // Violet:  Primary Accent
-    '#3b82f6', // Blue:    Tech Blue
-    '#06b6d4', // Cyan:    Bright Cyan
-    '#10b981', // Emerald: Success Green
-    '#f59e0b', // Amber:   Warmth
-    '#ec4899', // Pink:    Vibrant
-    '#6366f1', // Indigo
-    '#14b8a6', // Teal
-    '#f97316', // Orange
-    '#d946ef', // Fuchsia
-    '#84cc16', // Lime
-    '#e11d48', // Rose
-    '#0ea5e9', // Sky
-    '#a855f7', // Purple
-    '#22c55e', // Green
-  ];
-  const OTHERS_COLOR = '#475569'; // Slate 600 for Others
-
-  // 获取颜色 - Others 使用灰色，其他使用彩色
+  // 获取颜色 - Others 使用灰色，其他使用主题配色
   const getColor = useCallback((entry, index) => {
-    if (entry.name === 'Others') return OTHERS_COLOR;
-    return COLORS[index % COLORS.length];
-  }, []);
+    if (entry.name === 'Others') return theme.othersColor;
+    return theme.colors[index % theme.colors.length];
+  }, [theme]);
 
   const formatDuration = (ms) => {
     const seconds = Math.floor(ms / 1000);
@@ -316,8 +299,8 @@ function App() {
     if (active && payload && payload.length) {
       return (
         <div className="custom-tooltip">
-          <p style={{ margin: 0, fontWeight: 'bold', color: '#fff' }}>{payload[0].payload.name}</p>
-          <p style={{ margin: 0, color: '#ccc' }}>
+          <p style={{ margin: 0, fontWeight: 'bold', color: theme.textPrimary }}>{payload[0].payload.name}</p>
+          <p style={{ margin: 0, color: theme.textSecondary }}>
             Duration: {formatDuration(payload[0].value)}
           </p>
         </div>
@@ -364,8 +347,8 @@ function App() {
                 cursor: 'pointer',
                 padding: '5px 8px',
                 borderRadius: '6px',
-                backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-                border: isSelected ? '1px solid #8b5cf6' : '1px solid transparent',
+                backgroundColor: isSelected ? theme.selectedGlow : 'transparent',
+                border: isSelected ? `1px solid ${theme.selectedBorder}` : '1px solid transparent',
                 transition: 'all 0.2s ease'
               }}
             >
@@ -382,7 +365,7 @@ function App() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 width: '300px',
-                color: '#e2e8f0'
+                color: theme.textPrimary
               }}>
                 <span style={{
                   flex: 1,
@@ -393,7 +376,7 @@ function App() {
                 }} title={entry.displayName}>
                   {entry.displayName}
                 </span>
-                <span style={{ color: '#6366f1', fontWeight: '500', flexShrink: 0 }}>
+                <span style={{ color: theme.selectedBorder, fontWeight: '500', flexShrink: 0 }}>
                   {percentage}%
                 </span>
               </div>
@@ -402,7 +385,7 @@ function App() {
         })}
       </div>
     );
-  }, [pieData, globalTotalDuration, selectedApp, getColor, handleChartClick]);
+  }, [pieData, globalTotalDuration, selectedApp, getColor, handleChartClick, theme]);
 
   if (loading) {
     return (
@@ -415,6 +398,7 @@ function App() {
 
   return (
     <div className="app-container">
+      <ThemeToggle />
       <div className="dashboard-header">
         <h1>Daily Monitor</h1>
         <div className="header-controls">
@@ -526,7 +510,7 @@ function App() {
                 </PieChart>
               ) : (
                 <BarChart data={barData} layout="vertical" margin={{ left: 20, right: 50, top: 10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#444" />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={theme.gridColor} />
                   <XAxis type="number" hide />
                   <YAxis
                     dataKey="displayName"
@@ -541,7 +525,7 @@ function App() {
                           y={y}
                           dy={4}
                           textAnchor="end"
-                          fill={isSelected ? '#a78bfa' : (selectedApp ? '#64748b' : '#94a3b8')}
+                          fill={isSelected ? theme.selectedBorder : (selectedApp ? theme.textSecondary : theme.textPrimary)}
                           fontSize={13}
                           fontWeight={isSelected ? 700 : 500}
                           style={{ transition: 'all 0.2s ease' }}

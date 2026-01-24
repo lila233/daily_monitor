@@ -1,111 +1,197 @@
-# Daily Monitor (Usage Tracker)
+# Daily Monitor
+
+[中文文档](./README_ZH.md)
 
 An automated, local-first system to track your daily computer usage, visualizing active applications and website visits. Designed for Windows with minimal performance impact.
 
-## 🏗 Project Architecture
+## Preview
 
-The system consists of three main components:
+| Modern | Industrial | Terminal |
+|--------|------------|----------|
+| ![Modern](./docs/modern.png) | ![Industrial](./docs/industrial.png) | ![Terminal](./docs/terminal.png) |
 
-### 1. Server (Node.js)
-- **Location**: `/server`
-- **Role**: The core controller.
-- **Key Features**:
-  - **Window Tracking**: Uses `active-win` to poll the currently active window every **1 second**.
-  - **Idle Detection**: Spawns a lightweight C# subprocess (`IdleCheck.exe`) to detect system-wide inactivity. If inactive for **120 seconds**, tracking is paused.
-  - **Persistence**: Stores data in a local SQLite database (`server/history.db`).
-    - **Optimization**: Uses **WAL mode** (Write-Ahead Logging) for non-blocking I/O.
-    - **Debouncing**: Writes to disk every **10 seconds** to minimize disk wear and lag.
-  - **API**: Provides REST endpoints (`/api/stats`, `/api/history`) for the frontend and receives URL updates from the Chrome Extension.
+## Features
 
-### 2. Client (React + Vite)
-- **Location**: `/client`
-- **Role**: Visual dashboard for data analysis.
-- **Key Features**:
-  - **Tech Stack**: React, Recharts, Axios.
-  - **Smart Polling**: Polls data every **3 seconds** ONLY when the tab is visible. Automatically hibernates when backgrounded (zero resource usage while gaming).
-  - **Visuals**: Provides Pie charts and Bar charts for daily usage distribution.
-
-### 3. Chrome Extension
-- **Location**: `/chrome-extension`
-- **Role**: Enhances tracking granularity.
-- **Function**: Since getting browser URLs from the OS level is restricted/unreliable, this extension pushes the current Tab URL and Title to the local server (`http://localhost:3001`) whenever you switch tabs or navigate.
+- **Real-time Tracking**: Monitor active applications and browser tabs every second
+- **Smart Idle Detection**: Automatically pause tracking when away (keyboard/mouse/gamepad/media)
+- **Multiple Themes**: Switch between Modern, Industrial, and Terminal themes
+- **Auto Site Name Detection**: Automatically extract website names from page titles
+- **Interactive Filtering**: Click charts to filter activity logs, search by app/title/URL
+- **Date Range Selection**: View today, yesterday, last 7/30 days, or custom range
+- **Local & Private**: All data stored locally in SQLite, no cloud sync
 
 ---
 
-## 🚀 Setup & Deployment
+## Quick Start
 
 ### Prerequisites
-- **Node.js**: v16+ installed.
-- **Windows OS**: Required for `active-win` and `IdleCheck.exe` (native Windows API usage).
+
+- **Node.js**: v16 or higher
+- **Windows OS**: Required (uses Windows native APIs)
+- **.NET Framework**: Required for compiling C# tools
 
 ### Installation
 
-1.  **Install Root Dependencies (Server)**:
-    ```bash
-    npm install
-    ```
+```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/daily-monitor.git
+cd daily-monitor
 
-2.  **Install Client Dependencies**:
-    ```bash
-    cd client
-    npm install
-    ```
+# 2. Install server dependencies
+npm install
 
-3.  **Build the Client**:
-    ```bash
-    cd client
-    npm run build
-    ```
-    *(The server is configured to serve the `client/dist` folder statically at `http://localhost:3001`)*
+# 3. Install client dependencies
+npm install --prefix client
 
-4.  **Setup Chrome Extension**:
-    - Open Chrome and go to `chrome://extensions/`.
-    - Enable **Developer mode** (top right).
-    - Click **Load unpacked**.
-    - Select the `chrome-extension` folder in this project.
+# 4. Compile native tools (required on first run)
+cd server/tools
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /out:IdleCheck.exe IdleCheck.cs
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /out:GamepadCheck.exe GamepadCheck.cs
+cd ../..
 
-### Running the Project
+# 5. Build the client
+npm run build --prefix client
+```
 
-#### Option A: Background Mode (Recommended for Daily Use)
-Double-click the **`run_monitor_bg.vbs`** script in the root directory.
-- This will start the server silently without opening a terminal window.
-- The dashboard will be available at `http://localhost:3001`.
+### Running
 
-#### Option B: Foreground Mode (For Debugging)
-Run the following command in the root directory:
+#### Option A: Background Mode (Recommended)
+
+Double-click **`run_monitor_bg.vbs`** in the root directory.
+- Starts the server silently without a terminal window
+- Dashboard available at `http://localhost:3001`
+
+**Auto-start on Boot (Recommended):**
+1. Press `Win + R`, type `shell:startup`, press Enter
+2. Copy `run_monitor_bg.vbs` to the opened Startup folder
+3. The monitor will now start automatically when Windows boots
+
+#### Option B: Development Mode
+
+```bash
+npm run dev
+```
+- Hot-reload enabled for both server and client
+- Useful for debugging
+
+#### Option C: Production Mode
+
 ```bash
 npm start
 ```
 
-### Stopping the Monitor
-Double-click **`stop_monitor.bat`** to gracefully kill the Node.js process.
+### Stopping
+
+Double-click **`stop_monitor.bat`** to gracefully stop the server.
 
 ---
 
-## 🛠 Performance & Configuration Details
+## Chrome Extension Setup
 
-To ensure the monitor does not affect high-performance tasks (e.g., gaming), several optimizations are hardcoded:
+The Chrome extension enhances tracking by reporting exact URLs (instead of just window titles).
 
-- **Idle Logic**: `server/monitor.js`
-  - `IDLE_THRESHOLD_SECONDS = 120`: Stops tracking after 2 minutes of no input.
-  - `IdleCheck.exe`: A persistent C# background process communicates via StdIO, avoiding the overhead of spawning new processes repeatedly.
-  - **Media Playing Detection**: Uses `MediaCheck.ps1` (PowerShell + WinRT API) to detect if any media is playing. When media is playing (e.g., watching videos, listening to music), idle detection is bypassed to prevent false positives.
-  - **Gamepad Detection**: Uses `GamepadCheck.exe` (XInput API) to detect Xbox/XInput-compatible controller activity. When gamepad buttons are pressed or sticks are moved, idle detection is bypassed.
+1. Open Chrome and navigate to `chrome://extensions/`
+2. Enable **Developer mode** (top right toggle)
+3. Click **Load unpacked**
+4. Select the `chrome-extension` folder from this project
+5. Ensure the extension is enabled
 
-  - **Polling Frequencies**:
-  - **Active Window**: Every **1000ms** (1s).
-  - **Database Write**: Every **~1000ms** (1s) debounced.
-  - **Frontend Fetch**: Every **1000ms** (1s), auto-pauses when hidden.
-- **Database**:
-  - `server/db.js`: `PRAGMA journal_mode = WAL` is enabled to prevent read/write locks.
+**Verification**: The extension works automatically. Check its "Service Worker" in the extensions page for any errors.
 
 ---
 
-## 📂 Key Files Reference
+## Project Architecture
 
-- `server/monitor.js`: Main logic for active window polling and session management.
-- `server/tools/IdleCheck.cs`: Source code for the idle detection tool (keyboard/mouse input).
-- `server/tools/MediaCheck.ps1`: PowerShell script for media playback detection.
-- `server/tools/GamepadCheck.cs`: Source code for gamepad input detection.
-- `server/db.js`: Database schema and query logic (including domain classification rules).
-- `client/src/App.jsx`: Main frontend component handling data visualization and smart polling logic.
+```
+daily-monitor/
+├── server/                 # Node.js backend
+│   ├── index.js           # Express server & API endpoints
+│   ├── monitor.js         # Core tracking logic
+│   ├── db.js              # SQLite database & site name detection
+│   └── tools/             # Native Windows tools
+│       ├── IdleCheck.cs   # Keyboard/mouse idle detection
+│       ├── GamepadCheck.cs # Xbox controller detection
+│       └── MediaCheck.ps1 # Media playback detection
+├── client/                 # React frontend
+│   └── src/
+│       ├── App.jsx        # Main dashboard component
+│       ├── themes.css     # Theme definitions
+│       └── context/       # Theme context provider
+└── chrome-extension/       # Browser extension
+    ├── manifest.json
+    └── background.js
+```
+
+### Components
+
+| Component | Technology | Function |
+|-----------|------------|----------|
+| Server | Node.js, Express, SQLite | Window tracking, API, data persistence |
+| Client | React, Vite, Recharts | Data visualization dashboard |
+| Extension | Chrome MV3 | Browser URL reporting |
+
+---
+
+## Themes
+
+Click the theme button (top-right corner) to cycle between:
+
+| Theme | Style |
+|-------|-------|
+| **Modern** | Purple glassmorphism, clean and minimal |
+| **Industrial** | Retro aviation gauges, warm amber tones |
+| **Terminal** | CRT/hacker aesthetic, green phosphor glow |
+
+Theme preference is saved to localStorage.
+
+---
+
+## Performance Optimizations
+
+Designed to have zero impact on gaming and other high-performance tasks:
+
+- **Idle Detection**: Pauses after 120 seconds of inactivity
+- **Smart Polling**: Frontend stops polling when tab is hidden
+- **WAL Mode**: SQLite Write-Ahead Logging prevents I/O blocking
+- **Persistent Subprocesses**: Native tools communicate via stdio (no spawn overhead)
+- **Debounced Writes**: Database writes batched every ~1 second
+
+---
+
+## Configuration
+
+Key constants in `server/monitor.js`:
+
+```javascript
+IDLE_THRESHOLD_SECONDS = 120  // Pause tracking after 2 min idle
+POLL_INTERVAL = 1000          // Check active window every 1s
+```
+
+---
+
+## Troubleshooting
+
+### "ENOENT: IdleCheck.exe not found"
+Compile the C# tools:
+```bash
+cd server/tools
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /out:IdleCheck.exe IdleCheck.cs
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /out:GamepadCheck.exe GamepadCheck.cs
+```
+
+### "Cannot find client/dist/index.html"
+Build the client:
+```bash
+npm run build --prefix client
+```
+
+### Chrome extension not working
+1. Check that the server is running on port 3001
+2. Verify the extension is enabled in `chrome://extensions/`
+3. Click "Service Worker" to check for errors
+
+---
+
+## License
+
+MIT License
