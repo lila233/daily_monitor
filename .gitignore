@@ -29,5 +29,5 @@ Thumbs.db
 
 # Temporary files
 *.tmp
-.\.claude\settings.local.json
+.claude/
 *.exe

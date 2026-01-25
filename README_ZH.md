@@ -30,12 +30,9 @@
 - **Windows 系统**：必须（依赖 Windows 原生 API）
 - **.NET Framework**：用于编译 C# 工具
 
-### 安装步骤
-
-```bash
 # 1. 克隆仓库
-git clone https://github.com/yourusername/daily-monitor.git
-cd daily-monitor
+git clone https://github.com/lila233/daily_monitor.git
+cd daily_monitor
 
 # 2. 安装服务端依赖
 npm install
@@ -103,7 +100,7 @@ Chrome 扩展可以上报精确的 URL（而不仅仅是窗口标题），增强
 ## 项目架构
 
 ```
-daily-monitor/
+daily_monitor/
 ├── server/                 # Node.js 后端
 │   ├── index.js           # Express 服务器 & API 接口
 │   ├── monitor.js         # 核心追踪逻辑

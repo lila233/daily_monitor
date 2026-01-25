@@ -34,8 +34,8 @@ An automated, local-first system to track your daily computer usage, visualizing
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/daily-monitor.git
-cd daily-monitor
+git clone https://github.com/lila233/daily_monitor.git
+cd daily_monitor
 
 # 2. Install server dependencies
 npm install
@@ -103,7 +103,7 @@ The Chrome extension enhances tracking by reporting exact URLs (instead of just 
 ## Project Architecture
 
 ```
-daily-monitor/
+daily_monitor/
 ├── server/                 # Node.js backend
 │   ├── index.js           # Express server & API endpoints
 │   ├── monitor.js         # Core tracking logic
