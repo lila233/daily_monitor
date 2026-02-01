@@ -38,12 +38,14 @@ export const updateVisit = (id, endTime, duration) => {
   return stmt.run(endTime, duration, id);
 };
 
+const BROWSER_REGEX = /chrome|chromium|firefox|edge|brave|opera|safari/i;
+
 // Helper to determine the key for a visit
 export const getVisitKey = (visit) => {
   let key = visit.app_name || 'Unknown App'; // Default to App Name
 
   // Broaden browser detection
-  const isBrowser = visit.app_name && /chrome|chromium|firefox|edge|brave|opera|safari/i.test(visit.app_name);
+  const isBrowser = visit.app_name && BROWSER_REGEX.test(visit.app_name);
 
   if (isBrowser) {
       let domainFound = false;
@@ -155,7 +157,7 @@ export const getDailyStats = (startTime = null, endTime = null) => {
     const key = getVisitKey(visit);
 
     let cleanTitle = visit.title || '';
-    if (visit.app_name && /chrome|chromium|firefox|edge|brave|opera|safari/i.test(visit.app_name)) {
+    if (visit.app_name && BROWSER_REGEX.test(visit.app_name)) {
         const suffixes = [
             ' - Google Chrome', ' - Microsoft Edge', ' - Mozilla Firefox',
             ' - Brave', ' - Opera', ' - Chromium'

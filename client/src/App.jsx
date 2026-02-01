@@ -577,14 +577,14 @@ function App() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                border: '1px solid #8b5cf6',
+                backgroundColor: theme.selectedGlow,
+                border: `1px solid ${theme.selectedBorder}`,
                 borderRadius: '20px',
                 padding: '4px 12px',
                 fontSize: '13px',
-                boxShadow: '0 0 10px rgba(139, 92, 246, 0.2)'
+                boxShadow: `0 0 10px ${theme.selectedGlow}`
               }}>
-                <span style={{ color: '#e2e8f0' }}>Filtered by: <strong style={{ color: '#a78bfa' }}>{selectedApp}</strong></span>
+                <span style={{ color: theme.textPrimary }}>Filtered by: <strong style={{ color: theme.selectedBorder }}>{selectedApp}</strong></span>
                 <button
                   onClick={() => setSelectedApp(null)}
                   style={{

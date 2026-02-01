@@ -13,7 +13,7 @@ An automated, local-first system to track your daily computer usage, visualizing
 ## Features
 
 - **Real-time Tracking**: Monitor active applications and browser tabs every second
-- **Smart Idle Detection**: Automatically pause tracking when away (keyboard/mouse/gamepad/media)
+- **Smart Idle Detection**: Automatically pause tracking when away (keyboard/mouse/gamepad/audio)
 - **Multiple Themes**: Switch between Modern, Industrial, and Terminal themes
 - **Auto Site Name Detection**: Automatically extract website names from page titles
 - **Interactive Filtering**: Click charts to filter activity logs, search by app/title/URL
@@ -60,10 +60,11 @@ npm run build --prefix client
 Double-click **`run_monitor_bg.vbs`** in the root directory.
 - Starts the server silently without a terminal window
 - Dashboard available at `http://localhost:3001`
+- **Portable**: This script is designed to work even if you move it to the Startup folder.
 
 **Auto-start on Boot (Recommended):**
 1. Press `Win + R`, type `shell:startup`, press Enter
-2. Copy `run_monitor_bg.vbs` to the opened Startup folder
+2. Copy **`run_monitor_bg.vbs`** to the opened Startup folder
 3. The monitor will now start automatically when Windows boots
 
 #### Option B: Development Mode
@@ -83,6 +84,7 @@ npm start
 ### Stopping
 
 Double-click **`stop_monitor.bat`** to gracefully stop the server.
+> **Note**: This script safely terminates the process listening on port 3001, avoiding accidental shutdown of other Node.js projects.
 
 ---
 
@@ -111,15 +113,18 @@ daily_monitor/
 │   └── tools/             # Native Windows tools
 │       ├── IdleCheck.cs   # Keyboard/mouse idle detection
 │       ├── GamepadCheck.cs # Xbox controller detection
-│       └── MediaCheck.ps1 # Media playback detection
+│       ├── AudioCheck.ps1 # System audio output detection
+│       └── StopMonitor.ps1 # Safe process termination
 ├── client/                 # React frontend
 │   └── src/
 │       ├── App.jsx        # Main dashboard component
 │       ├── themes.css     # Theme definitions
 │       └── context/       # Theme context provider
-└── chrome-extension/       # Browser extension
-    ├── manifest.json
-    └── background.js
+├── chrome-extension/       # Browser extension
+│   ├── manifest.json
+│   └── background.js
+├── run_monitor_bg.vbs     # Background startup script
+└── stop_monitor.bat       # Safe stop script
 ```
 
 ### Components
@@ -151,9 +156,11 @@ Theme preference is saved to localStorage.
 Designed to have zero impact on gaming and other high-performance tasks:
 
 - **Idle Detection**: Pauses after 120 seconds of inactivity
+- **Audio Detection**: Continues tracking during media playback (music, videos)
 - **Smart Polling**: Frontend stops polling when tab is hidden
 - **WAL Mode**: SQLite Write-Ahead Logging prevents I/O blocking
 - **Persistent Subprocesses**: Native tools communicate via stdio (no spawn overhead)
+- **Non-blocking Checks**: Audio detection runs in background without blocking main loop
 - **Debounced Writes**: Database writes batched every ~1 second
 
 ---
@@ -163,8 +170,9 @@ Designed to have zero impact on gaming and other high-performance tasks:
 Key constants in `server/monitor.js`:
 
 ```javascript
-IDLE_THRESHOLD_SECONDS = 120  // Pause tracking after 2 min idle
-POLL_INTERVAL = 1000          // Check active window every 1s
+IDLE_THRESHOLD_SECONDS = 120      // Pause tracking after 2 min idle
+MEDIA_CHECK_INTERVAL_MS = 2000    // Check audio output every 2s
+MEDIA_GRACE_PERIOD_MS = 30000     // 30s grace period after audio stops
 ```
 
 ---
@@ -189,6 +197,9 @@ npm run build --prefix client
 1. Check that the server is running on port 3001
 2. Verify the extension is enabled in `chrome://extensions/`
 3. Click "Service Worker" to check for errors
+
+### Video playback not detected (mpv, VLC, etc.)
+The monitor uses **system audio output detection** instead of media session APIs. As long as your video has audio playing, it will be detected. If you're watching a silent video, the idle detection may trigger after 2 minutes.
 
 ---
 

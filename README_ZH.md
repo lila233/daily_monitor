@@ -13,7 +13,7 @@
 ## 功能特性
 
 - **实时追踪**：每秒监测当前活动的应用程序和浏览器标签页
-- **智能挂机检测**：离开电脑时自动暂停（支持键鼠/手柄/媒体播放检测）
+- **智能挂机检测**：离开电脑时自动暂停（支持键鼠/手柄/音频输出检测）
 - **多主题切换**：Modern（现代）、Industrial（工业）、Terminal（终端）三种风格
 - **自动识别网站名**：从页面标题中智能提取网站名称
 - **交互式筛选**：点击图表筛选活动日志，支持按应用/标题/URL搜索
@@ -30,6 +30,9 @@
 - **Windows 系统**：必须（依赖 Windows 原生 API）
 - **.NET Framework**：用于编译 C# 工具
 
+### 安装步骤
+
+```bash
 # 1. 克隆仓库
 git clone https://github.com/lila233/daily_monitor.git
 cd daily_monitor
@@ -57,10 +60,11 @@ npm run build --prefix client
 双击根目录下的 **`run_monitor_bg.vbs`**
 - 在后台启动服务端，不显示命令行窗口
 - 访问 `http://localhost:3001` 查看仪表盘
+- **便携性**：该脚本经过优化，支持直接复制到启动文件夹使用。
 
 **开机自启动（推荐）：**
 1. 按 `Win + R`，输入 `shell:startup`，回车
-2. 将 `run_monitor_bg.vbs` 复制到打开的启动文件夹中
+2. 将 **`run_monitor_bg.vbs`** 复制到打开的启动文件夹中
 3. 之后每次开机都会自动启动监控服务
 
 #### 方式 B：开发模式
@@ -80,6 +84,7 @@ npm start
 ### 停止服务
 
 双击根目录下的 **`stop_monitor.bat`** 即可关闭服务。
+> **注意**：该脚本会精准结束占用 3001 端口的进程，不会误杀其他运行中的 Node.js 项目。
 
 ---
 
@@ -108,15 +113,18 @@ daily_monitor/
 │   └── tools/             # Windows 原生工具
 │       ├── IdleCheck.cs   # 键鼠挂机检测
 │       ├── GamepadCheck.cs # Xbox 手柄检测
-│       └── MediaCheck.ps1 # 媒体播放检测
+│       ├── AudioCheck.ps1 # 系统音频输出检测
+│       └── StopMonitor.ps1 # 安全停止进程
 ├── client/                 # React 前端
 │   └── src/
 │       ├── App.jsx        # 主仪表盘组件
 │       ├── themes.css     # 主题样式定义
 │       └── context/       # 主题上下文
-└── chrome-extension/       # 浏览器扩展
-    ├── manifest.json
-    └── background.js
+├── chrome-extension/       # 浏览器扩展
+│   ├── manifest.json
+│   └── background.js
+├── run_monitor_bg.vbs     # 后台启动脚本
+└── stop_monitor.bat       # 安全停止脚本
 ```
 
 ### 组件说明
@@ -148,9 +156,11 @@ daily_monitor/
 确保对游戏等高性能任务零影响：
 
 - **挂机检测**：离开 120 秒后自动暂停追踪
+- **音频检测**：播放音乐/视频时持续追踪（检测系统音频输出）
 - **智能轮询**：前端标签页隐藏时停止刷新
 - **WAL 模式**：SQLite 写前日志，避免 I/O 阻塞
 - **常驻子进程**：原生工具通过 stdio 通信，无进程启动开销
+- **非阻塞检测**：音频检测在后台运行，不阻塞主循环
 - **写入缓冲**：数据库每秒批量写入一次
 
 ---
@@ -160,8 +170,9 @@ daily_monitor/
 `server/monitor.js` 中的关键常量：
 
 ```javascript
-IDLE_THRESHOLD_SECONDS = 120  // 挂机 2 分钟后暂停追踪
-POLL_INTERVAL = 1000          // 每 1 秒检测一次活动窗口
+IDLE_THRESHOLD_SECONDS = 120      // 挂机 2 分钟后暂停追踪
+MEDIA_CHECK_INTERVAL_MS = 2000    // 每 2 秒检测一次音频输出
+MEDIA_GRACE_PERIOD_MS = 30000     // 音频停止后 30 秒宽限期
 ```
 
 ---
@@ -186,6 +197,9 @@ npm run build --prefix client
 1. 确认服务器正在端口 3001 运行
 2. 在 `chrome://extensions/` 确认扩展已启用
 3. 点击 "Service Worker" 查看错误日志
+
+### 视频播放未被检测（mpv、VLC 等）
+本监控系统使用**系统音频输出检测**而非媒体会话 API。只要您的视频有声音在播放，就会被检测到。如果观看的是静音视频，挂机检测可能会在 2 分钟后触发。
 
 ---
 
